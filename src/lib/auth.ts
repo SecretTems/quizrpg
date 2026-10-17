@@ -82,6 +82,6 @@ export async function getSessionUser(): Promise<NormalizedUser | null> {
 /** Throws a Response-friendly object pattern: returns user or null with role check. */
 export async function requireAdmin() {
   const user = await getSessionUser();
-  if (!user || user.role !== "ADMIN") return null;
+  if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) return null;
   return user;
 }

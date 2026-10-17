@@ -6,10 +6,13 @@ import { requireAdmin } from "@/lib/auth";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** Promote / demote a user. Admins cannot change their own role. */
+/** Promote / demote a user. Only super admins may change roles; super admins cannot be demoted. */
 export async function PATCH(req: Request, { params }: Params) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Admin access required." }, { status: 403 });
+  if (admin.role !== "SUPER_ADMIN") {
+    return NextResponse.json({ error: "Only super admins can change roles." }, { status: 403 });
+  }
 
   await connectDB();
   const { id } = await params;
@@ -28,15 +31,21 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const target = await User.findById(id);
   if (!target) return NextResponse.json({ error: "User not found." }, { status: 404 });
+  if (target.role === "SUPER_ADMIN") {
+    return NextResponse.json({ error: "Super admins cannot be demoted." }, { status: 403 });
+  }
 
   await User.updateOne({ _id: id }, { $set: { role } });
   return NextResponse.json({ ok: true, role });
 }
 
-/** Delete a user and all of their questions/battles. Cannot delete self. */
+/** Delete a user and all of their questions/battles. Only super admins may delete; cannot delete self or another super admin. */
 export async function DELETE(_req: Request, { params }: Params) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Admin access required." }, { status: 403 });
+  if (admin.role !== "SUPER_ADMIN") {
+    return NextResponse.json({ error: "Only super admins can delete accounts." }, { status: 403 });
+  }
 
   await connectDB();
   const { id } = await params;
@@ -49,6 +58,9 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   const target = await User.findById(id);
   if (!target) return NextResponse.json({ error: "User not found." }, { status: 404 });
+  if (target.role === "SUPER_ADMIN") {
+    return NextResponse.json({ error: "Super admins cannot be deleted." }, { status: 403 });
+  }
 
   // manual cascade (MongoDB has no cross-collection FK enforcement)
   await Question.deleteMany({ ownerId: id });

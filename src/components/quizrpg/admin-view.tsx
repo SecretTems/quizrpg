@@ -64,7 +64,9 @@ export function AdminView() {
   async function toggleRole(u: AdminUser) {
     setBusyId(u.id);
     try {
-      const next = u.role === "ADMIN" ? "PLAYER" : "ADMIN";
+      // cycle: PLAYER -> ADMIN -> SUPER_ADMIN -> PLAYER (server rejects demoting a super admin,
+      // but keeps a "you"-style guard for the current viewer; SUPER_ADMIN row is skipped below)
+      const next = u.role === "PLAYER" ? "ADMIN" : "PLAYER";
       await api(`/api/admin/users/${u.id}`, { method: "PATCH", body: JSON.stringify({ role: next }) });
       toast({ title: `@${u.username} is now ${next === "ADMIN" ? "an admin 🛡️" : "a player ⚔️"}` });
       await load();
@@ -145,7 +147,7 @@ export function AdminView() {
                     <tr key={u.id} className={cn("border-b last:border-0", isMe && "bg-primary/5")}>
                       <td className="px-4 py-3">
                         <p className="font-bold">
-                          {u.role === "ADMIN" && "🛡️ "}{u.displayName}
+                          {u.role === "SUPER_ADMIN" ? "👑 " : u.role === "ADMIN" ? "🛡️ " : ""}{u.displayName}
                           {isMe && <span className="ml-1.5 rounded bg-primary/20 px-1 py-0.5 text-[10px] uppercase text-primary">You</span>}
                         </p>
                         <p className="text-[11px] text-muted-foreground">@{u.username}</p>
@@ -160,7 +162,7 @@ export function AdminView() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            disabled={isMe || busyId === u.id}
+                            disabled={isMe || u.role === "SUPER_ADMIN" || busyId === u.id}
                             onClick={() => void toggleRole(u)}
                             aria-label={u.role === "ADMIN" ? `Demote ${u.username} to player` : `Promote ${u.username} to admin`}
                             title={u.role === "ADMIN" ? "Demote to player" : "Promote to admin"}
@@ -173,7 +175,7 @@ export function AdminView() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-destructive"
-                                disabled={isMe || busyId === u.id}
+                                disabled={isMe || u.role === "SUPER_ADMIN" || busyId === u.id}
                                 aria-label={`Delete user ${u.username}`}
                                 title="Delete user"
                               >

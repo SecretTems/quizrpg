@@ -15,7 +15,7 @@ export interface IUser extends Document {
   username: string;
   displayName: string;
   passwordHash: string;
-  role: "ADMIN" | "PLAYER";
+  role: "ADMIN" | "SUPER_ADMIN" | "PLAYER";
   xp: number;
   battlesWon: number;
   battlesLost: number;
@@ -37,7 +37,7 @@ const UserSchema = new Schema<IUser>(
     },
     displayName: { type: String, default: "", maxlength: 30 },
     passwordHash: { type: String, required: true },
-    role: { type: String, enum: ["ADMIN", "PLAYER"], default: "PLAYER" },
+    role: { type: String, enum: ["ADMIN", "SUPER_ADMIN", "PLAYER"], default: "PLAYER" },
     xp: { type: Number, default: 0, min: 0 },
     battlesWon: { type: Number, default: 0, min: 0 },
     battlesLost: { type: Number, default: 0, min: 0 },

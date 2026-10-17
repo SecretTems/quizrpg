@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema(
     username: { type: String, required: true, unique: true },
     displayName: { type: String, default: "" },
     passwordHash: { type: String, required: true },
-    role: { type: String, enum: ["ADMIN", "PLAYER"], default: "PLAYER" },
+    role: { type: String, enum: ["ADMIN", "SUPER_ADMIN", "PLAYER"], default: "PLAYER" },
     xp: { type: Number, default: 0, min: 0 },
     battlesWon: { type: Number, default: 0, min: 0 },
     battlesLost: { type: Number, default: 0, min: 0 },
@@ -139,6 +139,22 @@ export async function seed() {
   );
   const admin = await User.findOne({ username: "admin" }).lean();
   console.log(`Admin ready: admin / admin123 (id=${admin._id}, ${adminResult.upsertedId ? "created" : "already existed"})`);
+
+  // --- super admin account ---
+  const superResult = await User.updateOne(
+    { username: "superadmin" },
+    {
+      $setOnInsert: {
+        username: "superadmin",
+        displayName: "Archmage",
+        passwordHash: hashPassword("super123"),
+        role: "SUPER_ADMIN",
+      },
+    },
+    { upsert: true },
+  );
+  const superAdmin = await User.findOne({ username: "superadmin" }).lean();
+  console.log(`Super admin ready: superadmin / super123 (id=${superAdmin._id}, ${superResult.upsertedId ? "created" : "already existed"})`);
 
   // --- demo player ---
   await User.updateOne(
