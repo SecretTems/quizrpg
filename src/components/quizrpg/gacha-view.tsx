@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { NormalizedUser } from "@/lib/models";
@@ -47,6 +47,7 @@ export function GachaView({ open, onOpenChange, user, onRefresh }: GachaViewProp
   };
 
   return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="sm:max-w-md p-4">
       <DialogHeader>
         <DialogTitle>Gacha</DialogTitle>
@@ -87,5 +88,6 @@ export function GachaView({ open, onOpenChange, user, onRefresh }: GachaViewProp
         Each pull costs 3 gems. Unique items can only be owned once; duplicates become shop fodder.
       </DialogDescription>
     </DialogContent>
+    </Dialog>
   );
 }

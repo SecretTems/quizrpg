@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { NormalizedUser } from "@/lib/models";
@@ -33,6 +33,7 @@ export function ShopView({ open, onOpenChange, user, onRefresh }: ShopViewProps)
   };
 
   return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="sm:max-w-md p-4">
       <DialogHeader>
         <DialogTitle>Shop</DialogTitle>
@@ -78,5 +79,6 @@ export function ShopView({ open, onOpenChange, user, onRefresh }: ShopViewProps)
         Purchased consumables go to your backpack and can be used during battle.
       </DialogDescription>
     </DialogContent>
+    </Dialog>
   );
 }

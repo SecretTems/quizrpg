@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { NormalizedUser } from "@/lib/models";
@@ -57,6 +57,7 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
   const equipped = user?.equipment ?? { WEAPON: null, ARMOR: null, ACCESSORY: null };
 
   return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="sm:max-w-md p-4">
       <DialogHeader>
         <DialogTitle>Equipment</DialogTitle>
@@ -124,5 +125,6 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
         Equipped gear is used in fights. Backpack items (up to 100 spare) are not brought into battle.
       </DialogDescription>
     </DialogContent>
+    </Dialog>
   );
 }
