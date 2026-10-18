@@ -264,6 +264,11 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <DifficultyBadge difficulty={q.difficulty} />
+              {q.status !== "OFFICIAL" && (
+                <span className="rounded-md border border-amber-600/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                  Practice — no rewards
+                </span>
+              )}
               <span className="text-xs text-muted-foreground">
                 Question {revealed ? revealed.questionNumber : battle.questionNumber}
               </span>

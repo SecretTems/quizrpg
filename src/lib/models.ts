@@ -1,4 +1,5 @@
 import { Schema, model, models, type FlattenMaps, type Types } from "mongoose";
+import type { BattleModeId } from "@/lib/game";
 
 /* =========================================================
    QUIZRPG — MongoDB models (Mongoose)
@@ -51,13 +52,17 @@ const UserSchema = new Schema<IUser>(
 
 export interface IQuestion extends Document {
   subject: string;
-  difficulty: "EASY" | "MEDIUM" | "HARD";
+  difficulty: "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER";
   text: string;
   options: string[];
   correctIndex: number;
   explanation: string;
-  /** null = global bank (admin / seeded); otherwise the author's user id */
+  /** null = official/global bank (admin / seeded); otherwise the author's user id */
   ownerId: string | null;
+  /** OFFICIAL = approved content everyone can play; CUSTOM = user's personal content */
+  status: "OFFICIAL" | "CUSTOM" | "PENDING" | "REJECTED";
+  /** admin-only notes when a submission is rejected */
+  reviewNote: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,12 +70,14 @@ export interface IQuestion extends Document {
 const QuestionSchema = new Schema<IQuestion>(
   {
     subject: { type: String, required: true, maxlength: 40 },
-    difficulty: { type: String, enum: ["EASY", "MEDIUM", "HARD"], required: true },
+    difficulty: { type: String, enum: ["EASY", "MEDIUM", "HARD", "EXPERT", "MASTER"], required: true },
     text: { type: String, required: true, maxlength: 500 },
     options: { type: [String], required: true },
-    correctIndex: { type: Number, required: true, min: 0, max: 3 },
+    correctIndex: { type: Number, required: true, min: 0, max: 9 },
     explanation: { type: String, default: "", maxlength: 500 },
     ownerId: { type: String, default: null },
+    status: { type: String, enum: ["OFFICIAL", "CUSTOM", "PENDING", "REJECTED"], default: "CUSTOM" },
+    reviewNote: { type: String, default: "", maxlength: 300 },
   },
   { timestamps: true },
 );
@@ -83,6 +90,9 @@ export interface IBattle extends Document {
   userId: string;
   subject: string;
   tier: number;
+  mode: "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER" | "INFINITE";
+  /** current wave number (1 for standard battles; increments in INFINITE mode) */
+  wave: number;
   enemyName: string;
   enemyMaxHp: number;
   enemyHp: number;
@@ -104,7 +114,12 @@ const BattleSchema = new Schema<IBattle>(
   {
     userId: { type: String, required: true },
     subject: { type: String, default: "ALL" },
-    tier: { type: Number, required: true, min: 1, max: 4 },
+    tier: { type: Number, required: true, min: 1, max: 8 },
+    /** battle mode difficulty this battle was started with */
+    mode: { type: String, enum: ["EASY", "MEDIUM", "HARD", "EXPERT", "MASTER", "INFINITE"], default: "EASY" },
+    /** current wave number (1 for standard battles; increments in INFINITE mode) */
+    wave: { type: Number, default: 1, min: 1 },
+    /** display name of the enemy fought */
     enemyName: { type: String, required: true },
     enemyMaxHp: { type: Number, required: true },
     enemyHp: { type: Number, required: true },
@@ -154,12 +169,14 @@ export interface NormalizedUser {
 export interface NormalizedQuestion {
   id: string;
   subject: string;
-  difficulty: "EASY" | "MEDIUM" | "HARD";
+  difficulty: "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER";
   text: string;
   options: string[];
   correctIndex: number;
   explanation: string;
   ownerId: string | null;
+  status: "OFFICIAL" | "CUSTOM" | "PENDING" | "REJECTED";
+  reviewNote: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -169,6 +186,8 @@ export interface NormalizedBattle {
   userId: string;
   subject: string;
   tier: number;
+  mode: BattleModeId;
+  wave: number;
   enemyName: string;
   enemyMaxHp: number;
   enemyHp: number;
@@ -184,6 +203,8 @@ export interface NormalizedBattle {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type BattleModeRecord = Pick<IBattle, "mode" | "wave">;
 
 function toId(id: Types.ObjectId | string): string {
   return typeof id === "string" ? id : id.toString();

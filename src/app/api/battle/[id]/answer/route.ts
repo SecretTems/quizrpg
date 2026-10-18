@@ -3,7 +3,8 @@ import { Types } from "mongoose";
 import { connectDB } from "@/lib/db";
 import { Battle, Question, User, normalizeBattle, normalizeQuestion } from "@/lib/models";
 import { getSessionUser } from "@/lib/auth";
-import { getTier, computeAnswer, levelProgress } from "@/lib/game";
+import { getTier, computeAnswer, levelProgress, getMode, infiniteWaveBonus } from "@/lib/game";
+import type { BattleModeId } from "@/lib/game";
 import { drawWave, newlyUnlockedTier, toBattleQuestion } from "@/lib/battle";
 import type { AnswerResultDTO, BattleStateDTO } from "@/lib/types";
 import type { Difficulty } from "@/lib/game";
@@ -40,7 +41,21 @@ export async function POST(req: Request, { params }: Params) {
 
   const tier = getTier(battleDoc.tier);
   const wasCorrect = choiceIndex === question.correctIndex;
-  const outcome = computeAnswer(question.difficulty as Difficulty, wasCorrect, battleDoc.streak, tier);
+
+  // user-made (custom/pending) questions are practice-only: no damage, no XP,
+  // no score and no stats — they don't affect the battle either way
+  const isCustom = question.status !== "OFFICIAL";
+  const outcome = isCustom
+    ? {
+        correct: wasCorrect,
+        damageDealt: 0,
+        damageTaken: 0,
+        xpGained: 0,
+        scoreGained: 0,
+        streak: wasCorrect ? battleDoc.streak : 0,
+        crit: false,
+      }
+    : computeAnswer(question.difficulty as Difficulty, wasCorrect, battleDoc.streak, tier);
 
   // --- apply combat result ---
   const enemyHp = Math.max(0, battleDoc.enemyHp - outcome.damageDealt);
@@ -51,32 +66,58 @@ export async function POST(req: Request, { params }: Params) {
   const xpEarned = battleDoc.xpEarned + outcome.xpGained;
 
   const xpBefore = levelProgress(user.xp).level;
+  // Custom-only battles are practice matches — no victory/loss rewards or stats.
+  const noReward = battleDoc.mode === "customOnly";
 
-  // XP accrues immediately so progress persists even mid-battle
-  await User.updateOne({ _id: user.id }, { $inc: { xp: outcome.xpGained } });
-  if (streak > user.bestStreak) {
-    await User.updateOne({ _id: user.id }, { $set: { bestStreak: streak } });
+  // XP accrues immediately so progress persists even mid-battle.
+  // Custom (user-made) questions are practice-only — no XP and no streak stats.
+  if (!isCustom && !noReward) {
+    await User.updateOne({ _id: user.id }, { $inc: { xp: outcome.xpGained } });
+    if (streak > user.bestStreak) {
+      await User.updateOne({ _id: user.id }, { $set: { bestStreak: streak } });
+    }
   }
 
   let status: "ONGOING" | "WON" | "LOST" = "ONGOING";
   let victoryBonus: { xp: number; score: number } | null = null;
+  let waveCleared = false;
+  const mode = getMode(battleDoc.mode as BattleModeId);
 
-  if (enemyHp <= 0) {
+  if (mode.infinite) {
+    // INFINITE: no single victory — each cleared wave pays a bonus, enemy HP
+    // partially refills, and the next wave is harder
+    const isWaveEnd = battleDoc.cursor + 1 >= ids.length;
+    if (isWaveEnd && enemyHp > 0 && playerHp > 0) {
+      waveCleared = true;
+      const bonus = infiniteWaveBonus(battleDoc.wave);
+      if (!noReward) {
+        await User.updateOne(
+          { _id: user.id },
+          { $inc: { xp: bonus.xp } },
+        );
+      }
+      victoryBonus = noReward ? { xp: 0, score: 0 } : bonus;
+    }
+  } else if (enemyHp <= 0) {
     status = "WON";
-    victoryBonus = { xp: tier.victoryXp, score: tier.victoryScore + bestStreak * 10 };
-    await User.updateOne(
-      { _id: user.id },
-      {
-        $inc: { xp: victoryBonus.xp, battlesWon: 1 },
-        $max: { bestScore: score + victoryBonus.score },
-      },
-    );
+    victoryBonus = { xp: mode.rewardXp, score: mode.rewardScore + bestStreak * 10 };
+    if (!noReward) {
+      await User.updateOne(
+        { _id: user.id },
+        {
+          $inc: { xp: victoryBonus.xp, battlesWon: 1 },
+          $max: { bestScore: score + victoryBonus.score },
+        },
+      );
+    }
   } else if (playerHp <= 0) {
     status = "LOST";
-    await User.updateOne(
-      { _id: user.id },
-      { $inc: { battlesLost: 1 }, $max: { bestScore: score } },
-    );
+    if (!noReward) {
+      await User.updateOne(
+        { _id: user.id },
+        { $inc: { battlesLost: 1 }, $max: { bestScore: score } },
+      );
+    }
   }
 
   // --- advance to next question / next wave ---
@@ -87,9 +128,25 @@ export async function POST(req: Request, { params }: Params) {
   if (status === "ONGOING") {
     cursor += 1;
     if (cursor >= allIds.length) {
-      const wave = await drawWave(battleDoc.subject, user.id, battleDoc.tier, allIds);
+      // wave exhausted — INFINITE mode pulls a fresh, harder wave from the pool;
+      // standard modes end the battle unless the pool had leftover questions
+      const nextWave = battleDoc.wave + 1;
+      const wave = await drawWave(
+        battleDoc.subject,
+        user.id,
+        battleDoc.tier,
+        battleDoc.mode as BattleModeId,
+        nextWave,
+        allIds,
+      );
       if (wave.length > 0) {
         allIds = [...allIds, ...wave.map((q) => q.id)];
+        battleDoc.set("wave", nextWave);
+        if (mode.infinite) {
+          // fresh enemy for the next wave: partial HP refill so the fight continues
+          const refill = Math.ceil(battleDoc.enemyMaxHp * 0.35);
+          battleDoc.set("enemyHp", refill);
+        }
       }
     }
     if (cursor < allIds.length) {
@@ -141,6 +198,8 @@ export async function POST(req: Request, { params }: Params) {
     newLevel: xpAfter,
     unlockedTier,
     victoryBonus,
+    waveCleared,
+    waveNumber: updatedBattle.wave,
   };
 
   return NextResponse.json(result);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Check, Loader2, LogOut, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,12 +19,12 @@ export function ProfileView({ onStatsChanged }: { onStatsChanged: () => void }) 
   const { toast } = useToast();
 
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState("");
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (user) setName(user.displayName);
-  }, [user?.displayName]);
+  // draft name while editing; falls back to the stored display name otherwise
+  const name = editing ? (nameDraft ?? user?.displayName ?? "") : (user?.displayName ?? "");
+  const setName = setNameDraft;
 
   if (!user) return null;
   const lp = levelProgress(user.xp);

@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Battle, Question, normalizeBattle, normalizeQuestion } from "@/lib/models";
 import { getSessionUser } from "@/lib/auth";
-import { getTier, playerMaxHp, levelProgress, ENEMY_TIERS } from "@/lib/game";
+import { getTier, playerMaxHp, levelProgress, ENEMY_TIERS, BATTLE_MODES, getMode, isBattleModeId } from "@/lib/game";
 import { drawWave, toBattleState, toBattleQuestion } from "@/lib/battle";
+import type { BattleModeId } from "@/lib/game";
 
 /** Resume: return the player's ongoing battle, if any. */
 export async function GET() {
@@ -45,8 +46,14 @@ export async function POST(req: Request) {
   const subject = String(body.subject ?? "ALL").trim() || "ALL";
   const tierNum = Number(body.tier ?? 1);
   const tier = getTier(tierNum);
+  const mode = String(body.mode ?? "EASY").toUpperCase() as BattleModeId;
+  const battleMode = getMode(mode);
+  const customOnly = Boolean(body.customOnly);
   const { level } = levelProgress(user.xp);
 
+  if (!isBattleModeId(mode)) {
+    return NextResponse.json({ error: "Unknown battle mode." }, { status: 400 });
+  }
   if (!ENEMY_TIERS.some((t) => t.tier === tier.tier)) {
     return NextResponse.json({ error: "Unknown enemy tier." }, { status: 400 });
   }
@@ -56,8 +63,14 @@ export async function POST(req: Request) {
       { status: 403 },
     );
   }
+  if (level < battleMode.unlockLevel) {
+    return NextResponse.json(
+      { error: `${battleMode.label} unlocks at level ${battleMode.unlockLevel}.` },
+      { status: 403 },
+    );
+  }
 
-  const questions = await drawWave(subject, user.id, tier.tier);
+  const questions = await drawWave(subject, user.id, tier.tier, battleMode.id, 1, [], customOnly);
   if (questions.length === 0) {
     return NextResponse.json(
       { error: "No questions available yet. Add some in the Question Bank first." },
@@ -69,6 +82,7 @@ export async function POST(req: Request) {
     userId: user.id,
     subject,
     tier: tier.tier,
+    mode: battleMode.id,
     enemyName: tier.name,
     enemyMaxHp: tier.maxHp,
     enemyHp: tier.maxHp,

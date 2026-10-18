@@ -1,25 +1,23 @@
 /**
- * QUIZRPG — MongoDB seeder (plain Node, no build step needed).
- *
- * Usage:
- *   npm run seed          (uses MONGODB_URI from .env)
- *   MONGODB_URI=... node scripts/seed.mjs
- *
- * Creates demo accounts (admin/admin123, hero/hero123) and 45 starter
- * questions across Mathematics / Science / History / English / Programming.
- * Safe to re-run: existing users are kept, global questions are only
- * inserted when the global bank is empty-ish.
+ * QUIZRPG database seeder — idempotent.
+ * Creates staff accounts (superadmin / admin) and an official starter
+ * question bank across subjects and all five difficulties.
  */
 import mongoose from "mongoose";
-import crypto from "node:crypto";
-import { pathToFileURL } from "node:url";
+import { randomBytes, scryptSync } from "node:crypto";
 
-/* ---------- minimal schemas (mirrors src/lib/models.ts) ---------- */
+/* ---------- password hashing (matches src/lib/auth.ts) ---------- */
+function hashPassword(password) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
 
+/* ---------- minimal schemas (standalone, no imports needed) ---------- */
 const userSchema = new mongoose.Schema(
   {
-    username: { type: String, required: true, unique: true },
-    displayName: { type: String, default: "" },
+    username: { type: String, required: true, unique: true, minlength: 3, maxlength: 20 },
+    displayName: { type: String, default: "", maxlength: 30 },
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ["ADMIN", "SUPER_ADMIN", "PLAYER"], default: "PLAYER" },
     xp: { type: Number, default: 0, min: 0 },
@@ -30,16 +28,17 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
-
 const questionSchema = new mongoose.Schema(
   {
-    subject: { type: String, required: true },
-    difficulty: { type: String, enum: ["EASY", "MEDIUM", "HARD"], required: true },
-    text: { type: String, required: true },
+    subject: { type: String, required: true, maxlength: 40 },
+    difficulty: { type: String, enum: ["EASY", "MEDIUM", "HARD", "EXPERT", "MASTER"], required: true },
+    text: { type: String, required: true, maxlength: 500 },
     options: { type: [String], required: true },
-    correctIndex: { type: Number, required: true, min: 0, max: 3 },
-    explanation: { type: String, default: "" },
+    correctIndex: { type: Number, required: true, min: 0, max: 9 },
+    explanation: { type: String, default: "", maxlength: 500 },
     ownerId: { type: String, default: null },
+    status: { type: String, enum: ["OFFICIAL", "CUSTOM", "PENDING", "REJECTED"], default: "CUSTOM" },
+    reviewNote: { type: String, default: "", maxlength: 300 },
   },
   { timestamps: true },
 );
@@ -47,16 +46,7 @@ const questionSchema = new mongoose.Schema(
 const User = mongoose.models.User ?? mongoose.model("User", userSchema);
 const Question = mongoose.models.Question ?? mongoose.model("Question", questionSchema);
 
-/* ---------- same scrypt format as src/lib/auth.ts ---------- */
-
-function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString("hex");
-  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
-  return `${salt}:${hash}`;
-}
-
-/* ---------- 45 starter questions ---------- */
-
+/* ---------- official starter bank ---------- */
 const SEED_QUESTIONS = [
   // ---------------- MATHEMATICS ----------------
   { subject: "Mathematics", difficulty: "EASY", text: "What is 7 × 8?", options: ["54", "56", "48", "64"], correctIndex: 1, explanation: "7 × 8 = 56." },
@@ -68,6 +58,12 @@ const SEED_QUESTIONS = [
   { subject: "Mathematics", difficulty: "HARD", text: "What is the derivative of x³?", options: ["3x²", "x²", "3x", "x⁴/4"], correctIndex: 0, explanation: "Power rule: d/dx x³ = 3x²." },
   { subject: "Mathematics", difficulty: "HARD", text: "If a fair coin is flipped 3 times, what is the probability of exactly 2 heads?", options: ["1/2", "1/4", "3/8", "2/3"], correctIndex: 2, explanation: "C(3,2)/8 = 3/8." },
   { subject: "Mathematics", difficulty: "HARD", text: "What is the sum of the interior angles of a pentagon?", options: ["360°", "450°", "540°", "720°"], correctIndex: 2, explanation: "(n − 2) × 180° = 3 × 180° = 540°." },
+  { subject: "Mathematics", difficulty: "EXPERT", text: "What is the value of e (Euler's number) to three decimal places?", options: ["2.718", "3.142", "1.618", "2.302"], correctIndex: 0, explanation: "e ≈ 2.718, the base of natural logarithms." },
+  { subject: "Mathematics", difficulty: "EXPERT", text: "What does the Fundamental Theorem of Calculus connect?", options: ["Derivatives and integrals", "Algebra and geometry", "Prime numbers and factoring", "Limits and series"], correctIndex: 0, explanation: "It shows differentiation and integration are inverse operations." },
+  { subject: "Mathematics", difficulty: "EXPERT", text: "What is the imaginary unit i squared?", options: ["1", "−1", "i", "−i"], correctIndex: 1, explanation: "i² = −1 by definition of imaginary numbers." },
+  { subject: "Mathematics", difficulty: "MASTER", text: "What is the general solution of dy/dx = ky (k constant)?", options: ["y = Ce^(kx)", "y = Cx^k", "y = kx + C", "y = ln(kx) + C"], correctIndex: 0, explanation: "Exponential growth: y = Ce^(kx) solves the separable ODE." },
+  { subject: "Mathematics", difficulty: "MASTER", text: "What is the determinant of a 2×2 matrix [[a, b], [c, d]]?", options: ["ad − bc", "ab − cd", "a + d", "ac + bd"], correctIndex: 0, explanation: "det = ad − bc for 2×2 matrices." },
+  { subject: "Mathematics", difficulty: "MASTER", text: "What does it mean for a matrix to be singular?", options: ["It has determinant 0 (not invertible)", "It is symmetric", "It has 1 row", "All entries are 1"], correctIndex: 0, explanation: "A singular matrix has zero determinant and no inverse." },
 
   // ---------------- SCIENCE ----------------
   { subject: "Science", difficulty: "EASY", text: "Which planet is known as the Red Planet?", options: ["Venus", "Mars", "Jupiter", "Mercury"], correctIndex: 1, explanation: "Mars appears red due to iron oxide (rust) on its surface." },
@@ -79,6 +75,12 @@ const SEED_QUESTIONS = [
   { subject: "Science", difficulty: "HARD", text: "In physics, what does Newton's Third Law state?", options: ["F = ma", "Every action has an equal and opposite reaction", "Energy cannot be created or destroyed", "Objects in motion stay in motion"], correctIndex: 1, explanation: "The Third Law: for every action there is an equal and opposite reaction." },
   { subject: "Science", difficulty: "HARD", text: "What is the most abundant gas in Earth's atmosphere?", options: ["Oxygen", "Carbon dioxide", "Argon", "Nitrogen"], correctIndex: 3, explanation: "Nitrogen makes up about 78% of the atmosphere." },
   { subject: "Science", difficulty: "HARD", text: "Which particle carries a negative electric charge?", options: ["Proton", "Neutron", "Electron", "Positron"], correctIndex: 2, explanation: "Electrons are negatively charged; protons positive, neutrons neutral." },
+  { subject: "Science", difficulty: "EXPERT", text: "What is the energy molecule that cells use for fuel?", options: ["ATP", "DNA", "RNA", "Glucose"], correctIndex: 0, explanation: "ATP (adenosine triphosphate) is the cell's energy currency." },
+  { subject: "Science", difficulty: "EXPERT", text: "In genetics, what does DNA transcription produce?", options: ["mRNA", "Protein", "Lipids", "Carbohydrates"], correctIndex: 0, explanation: "Transcription copies DNA into messenger RNA (mRNA)." },
+  { subject: "Science", difficulty: "EXPERT", text: "What is the pH of a neutral solution at 25°C?", options: ["7", "0", "14", "1"], correctIndex: 0, explanation: "Neutral pH is exactly 7 (equal H⁺ and OH⁻ concentrations)." },
+  { subject: "Science", difficulty: "MASTER", text: "Which law states entropy of an isolated system never decreases?", options: ["Second Law of Thermodynamics", "First Law of Thermodynamics", "Newton's First Law", "Ohm's Law"], correctIndex: 0, explanation: "The Second Law: total entropy always increases in isolated systems." },
+  { subject: "Science", difficulty: "MASTER", text: "What particle mediates the electromagnetic force?", options: ["Photon", "Gluon", "Neutrino", "Graviton"], correctIndex: 0, explanation: "Photons are the force carriers of electromagnetism." },
+  { subject: "Science", difficulty: "MASTER", text: "What is the process by which stars produce energy?", options: ["Nuclear fusion", "Nuclear fission", "Chemical combustion", "Radioactive decay"], correctIndex: 0, explanation: "Stars fuse hydrogen into helium, releasing enormous energy." },
 
   // ---------------- HISTORY ----------------
   { subject: "History", difficulty: "EASY", text: "In which year did World War II end?", options: ["1943", "1944", "1945", "1946"], correctIndex: 2, explanation: "WWII ended in 1945 with the surrender of Germany and Japan." },
@@ -90,6 +92,12 @@ const SEED_QUESTIONS = [
   { subject: "History", difficulty: "HARD", text: "Which document did King John of England sign in 1215?", options: ["Bill of Rights", "Magna Carta", "Declaration of Independence", "Treaty of Versailles"], correctIndex: 1, explanation: "The Magna Carta limited royal power and was signed in 1215." },
   { subject: "History", difficulty: "HARD", text: "The Hundred Years' War was fought between which two countries?", options: ["France and Spain", "England and France", "England and Spain", "France and Germany"], correctIndex: 1, explanation: "It was a series of conflicts between England and France (1337–1453)." },
   { subject: "History", difficulty: "HARD", text: "Who was the last pharaoh of ancient Egypt?", options: ["Nefertiti", "Hatshepsut", "Cleopatra VII", "Tutankhamun"], correctIndex: 2, explanation: "Cleopatra VII was the last active pharaoh of Ptolemaic Egypt." },
+  { subject: "History", difficulty: "EXPERT", text: "What year did the Industrial Revolution generally begin in Britain?", options: ["Around 1760", "Around 1600", "Around 1850", "Around 1900"], correctIndex: 0, explanation: "The Industrial Revolution took off in Britain around 1760." },
+  { subject: "History", difficulty: "EXPERT", text: "Who was the Spanish conquistador that conquered the Aztec Empire?", options: ["Hernán Cortés", "Francisco Pizarro", "Vasco da Gama", "Ferdinand Magellan"], correctIndex: 0, explanation: "Cortés toppled the Aztec Empire (1519–1521); Pizarro conquered the Inca." },
+  { subject: "History", difficulty: "EXPERT", text: "The Treaty of Westphalia (1648) ended which war?", options: ["Thirty Years' War", "Hundred Years' War", "War of the Roses", "Seven Years' War"], correctIndex: 0, explanation: "It ended the Thirty Years' War and shaped modern state sovereignty." },
+  { subject: "History", difficulty: "MASTER", text: "Which ancient civilization developed the cuneiform writing system?", options: ["Sumerians", "Egyptians", "Phoenicians", "Minoans"], correctIndex: 0, explanation: "Sumerians of Mesopotamia created cuneiform around 3200 BCE." },
+  { subject: "History", difficulty: "MASTER", text: "What combination of pressures most directly caused the fall of the Western Roman Empire in 476 CE?", options: ["Invasions, economic decline and political instability", "A single volcanic eruption", "The rise of China", "The Black Death alone"], correctIndex: 0, explanation: "Multiple pressures — barbarian invasions, economic crisis, political decay — ended the Western Empire." },
+  { subject: "History", difficulty: "MASTER", text: "Which event started World War I?", options: ["Assassination of Archduke Franz Ferdinand", "Bombing of Pearl Harbor", "Invasion of Poland", "Storming of the Bastille"], correctIndex: 0, explanation: "The June 1914 assassination in Sarajevo triggered the war." },
 
   // ---------------- ENGLISH ----------------
   { subject: "English", difficulty: "EASY", text: "Which word is a synonym of 'happy'?", options: ["Joyful", "Angry", "Tired", "Fearful"], correctIndex: 0, explanation: "'Joyful' means the same as 'happy'." },
@@ -101,6 +109,12 @@ const SEED_QUESTIONS = [
   { subject: "English", difficulty: "HARD", text: "Which literary device is used in: 'The wind whispered through the trees'?", options: ["Hyperbole", "Personification", "Alliteration", "Onomatopoeia"], correctIndex: 1, explanation: "Personification gives human traits (whispering) to non-human things." },
   { subject: "English", difficulty: "HARD", text: "What does the word 'ephemeral' mean?", options: ["Lasting forever", "Extremely large", "Short-lived", "Deeply hidden"], correctIndex: 2, explanation: "'Ephemeral' describes something that lasts a very short time." },
   { subject: "English", difficulty: "HARD", text: "In literature, an unreliable narrator is one who...", options: ["Speaks multiple languages", "Cannot be fully trusted to tell the story accurately", "Narrates in third person", "Writes in verse"], correctIndex: 1, explanation: "An unreliable narrator's credibility is compromised, twisting our view of events." },
+  { subject: "English", difficulty: "EXPERT", text: "What is a malapropism?", options: ["The mistaken use of a word in place of a similar-sounding one", "A repeated phrase", "A rhyme scheme", "A type of stanza"], correctIndex: 0, explanation: "A malapropism swaps a word for a similar-sounding wrong one." },
+  { subject: "English", difficulty: "EXPERT", text: "Which best describes 'in medias res'?", options: ["A story that begins in the middle of the action", "A story told in letters", "A moral tale", "A poem of 14 lines"], correctIndex: 0, explanation: "'In medias res' = into the middle of things — starting mid-action." },
+  { subject: "English", difficulty: "EXPERT", text: "What is the meaning of the Greek root 'chron'?", options: ["Time", "Sound", "Light", "Life"], correctIndex: 0, explanation: "'Chron' means time — as in chronology and chronicle." },
+  { subject: "English", difficulty: "MASTER", text: "Which describes the rhythm of iambic pentameter?", options: ["Five unstressed-stressed pairs per line", "Three stressed syllables per line", "All lines rhyme", "No set stress pattern"], correctIndex: 0, explanation: "Iambic pentameter = 5 iambs: unstressed–stressed ×5 (Shakespeare's meter)." },
+  { subject: "English", difficulty: "MASTER", text: "What narrative technique streams a character's unfiltered thoughts?", options: ["Stream of consciousness", "Epistolary narration", "Frame narrative", "Second-person narration"], correctIndex: 0, explanation: "Stream of consciousness mimics the flow of raw thought (Joyce, Woolf)." },
+  { subject: "English", difficulty: "MASTER", text: "Who wrote the modernist epic 'Ulysses'?", options: ["James Joyce", "T.S. Eliot", "Virginia Woolf", "Ernest Hemingway"], correctIndex: 0, explanation: "James Joyce's 'Ulysses' (1922) is the landmark modernist novel." },
 
   // ---------------- PROGRAMMING ----------------
   { subject: "Programming", difficulty: "EASY", text: "What does 'HTML' stand for?", options: ["HyperText Markup Language", "HighText Machine Language", "HyperTool Multi Language", "HomeText Markup Layout"], correctIndex: 0, explanation: "HTML = HyperText Markup Language, the structure of the web." },
@@ -110,35 +124,24 @@ const SEED_QUESTIONS = [
   { subject: "Programming", difficulty: "MEDIUM", text: "In programming, what is a 'loop'?", options: ["A type of error", "A structure that repeats instructions", "A variable name", "A comment format"], correctIndex: 1, explanation: "Loops repeat a block of code until a condition is met." },
   { subject: "Programming", difficulty: "MEDIUM", text: "Which data structure works on First-In-First-Out (FIFO) principle?", options: ["Stack", "Queue", "Tree", "Graph"], correctIndex: 1, explanation: "A queue processes elements in the order they arrived (FIFO)." },
   { subject: "Programming", difficulty: "HARD", text: "What is the time complexity of binary search on a sorted array?", options: ["O(n)", "O(n log n)", "O(log n)", "O(1)"], correctIndex: 2, explanation: "Binary search halves the search space each step: O(log n)." },
-  { subject: "Programming", difficulty: "HARD", text: "In object-oriented programming, what is 'inheritance'?", options: ["Copying files between folders", "A class deriving properties from another class", "Sorting objects by size", "Deleting unused variables"], correctIndex: 1, explanation: "Inheritance lets a child class reuse and extend a parent class's behavior." },
-  { subject: "Programming", difficulty: "HARD", text: "What does the 'M' stand for in the MVC architecture pattern?", options: ["Markup", "Model", "Method", "Module"], correctIndex: 1, explanation: "MVC = Model, View, Controller — the Model manages data and logic." },
+  { subject: "Programming", difficulty: "HARD", text: "In SQL, which clause filters rows BEFORE grouping?", options: ["WHERE", "HAVING", "ORDER BY", "LIMIT"], correctIndex: 0, explanation: "WHERE filters individual rows; HAVING filters after GROUP BY." },
+  { subject: "Programming", difficulty: "HARD", text: "What does 'DRY' stand for in software engineering?", options: ["Don't Repeat Yourself", "Do Reuse Yourself", "Data Ready Yield", "Dynamic Runtime Yield"], correctIndex: 0, explanation: "DRY: avoid duplicating logic — write it once, reuse it." },
+  { subject: "Programming", difficulty: "EXPERT", text: "In Git, which command creates a new branch and switches to it?", options: ["git checkout -b <name>", "git branch <name>", "git commit -b <name>", "git tag <name>"], correctIndex: 0, explanation: "git checkout -b creates and switches in one step (git switch -c is newer)." },
+  { subject: "Programming", difficulty: "EXPERT", text: "What is a 'closure' in JavaScript?", options: ["A function retaining access to its outer scope's variables", "A completed try/catch", "A locked database transaction", "A CSS rule block"], correctIndex: 0, explanation: "Closures capture variables from where the function was defined." },
+  { subject: "Programming", difficulty: "EXPERT", text: "What is the HTTP status code for 'Not Found'?", options: ["404", "301", "500", "403"], correctIndex: 0, explanation: "404 = resource not found; 403 = forbidden; 500 = server error." },
+  { subject: "Programming", difficulty: "MASTER", text: "Which HTTP method is idempotent and safe (never changes server state)?", options: ["GET", "POST", "PATCH", "DELETE"], correctIndex: 0, explanation: "GET only reads — repeating it never changes anything." },
+  { subject: "Programming", difficulty: "MASTER", text: "What is a race condition in concurrent programming?", options: ["When two threads access shared state and the result depends on timing", "A fast database query", "A loop that never ends", "A CSS animation glitch"], correctIndex: 0, explanation: "Race conditions occur when thread interleaving timing changes results." },
+  { subject: "Programming", difficulty: "MASTER", text: "What does MongoDB's $lookup aggregation stage do?", options: ["Performs a left outer join to another collection", "Sorts documents", "Deletes fields", "Creates an index"], correctIndex: 0, explanation: "$lookup joins documents from another collection (like a SQL left join)." },
 ];
 
-/* ---------- seeding ---------- */
-
-export async function seed() {
+/* ---------- seed ---------- */
+async function seed() {
   const uri = process.env.MONGODB_URI;
   if (!uri) {
-    throw new Error("MONGODB_URI is not set. Add it to .env or pass it inline (see README).");
+    throw new Error("MONGODB_URI is not set. Add it to .env or pass it inline.");
   }
   await mongoose.connect(uri);
   console.log(`Seeding QUIZRPG database at ${uri.replace(/\/\/.*@/, "//***@")}...`);
-
-  // --- admin account ---
-  const adminResult = await User.updateOne(
-    { username: "admin" },
-    {
-      $setOnInsert: {
-        username: "admin",
-        displayName: "Game Master",
-        passwordHash: hashPassword("admin123"),
-        role: "ADMIN",
-      },
-    },
-    { upsert: true },
-  );
-  const admin = await User.findOne({ username: "admin" }).lean();
-  console.log(`Admin ready: admin / admin123 (id=${admin._id}, ${adminResult.upsertedId ? "created" : "already existed"})`);
 
   // --- super admin account ---
   const superResult = await User.updateOne(
@@ -154,7 +157,23 @@ export async function seed() {
     { upsert: true },
   );
   const superAdmin = await User.findOne({ username: "superadmin" }).lean();
-  console.log(`Super admin ready: superadmin / super123 (id=${superAdmin._id}, ${superResult.upsertedId ? "created" : "already existed"})`);
+  console.log(`Super admin ready: superadmin / super123 (${superResult.upsertedId ? "created" : "already existed"}, id=${superAdmin._id})`);
+
+  // --- admin account ---
+  const adminResult = await User.updateOne(
+    { username: "admin" },
+    {
+      $setOnInsert: {
+        username: "admin",
+        displayName: "Game Master",
+        passwordHash: hashPassword("admin123"),
+        role: "ADMIN",
+      },
+    },
+    { upsert: true },
+  );
+  const admin = await User.findOne({ username: "admin" }).lean();
+  console.log(`Admin ready: admin / admin123 (${adminResult.upsertedId ? "created" : "already existed"}, id=${admin._id})`);
 
   // --- demo player ---
   await User.updateOne(
@@ -171,29 +190,25 @@ export async function seed() {
   );
   console.log("Demo player ready: hero / hero123");
 
-  // --- questions (skip if the global bank is already populated) ---
-  const count = await Question.countDocuments({ ownerId: null });
+  // --- official questions (replace stale official bank only) ---
+  const count = await Question.countDocuments({ status: "OFFICIAL" });
   if (count >= SEED_QUESTIONS.length) {
-    console.log(`Global question bank already seeded (${count} questions). Skipping.`);
+    console.log(`Official question bank already seeded (${count} questions). Skipping.`);
   } else {
-    await Question.deleteMany({ ownerId: null });
-    await Question.insertMany(SEED_QUESTIONS.map((q) => ({ ...q, ownerId: null })));
-    console.log(`Seeded ${SEED_QUESTIONS.length} questions.`);
+    await Question.deleteMany({ status: "OFFICIAL" });
+    await Question.insertMany(SEED_QUESTIONS.map((q) => ({ ...q, ownerId: null, status: "OFFICIAL" })));
+    console.log(`Seeded ${SEED_QUESTIONS.length} official questions.`);
   }
 
-  const totalUsers = await User.countDocuments();
-  const totalQuestions = await Question.countDocuments();
-  console.log(`Seed complete. Users: ${totalUsers}, Questions: ${totalQuestions}.`);
+  const users = await User.countDocuments();
+  const questions = await Question.countDocuments();
+  console.log(`Seed complete. Users: ${users}, Questions: ${questions}.`);
 }
 
-/* ---------- CLI entry ---------- */
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  seed()
-    .then(() => mongoose.disconnect())
-    .then(() => process.exit(0))
-    .catch((e) => {
-      console.error(e);
-      process.exit(1);
-    });
-}
+seed()
+  .then(() => mongoose.disconnect())
+  .catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+    mongoose.disconnect();
+  });

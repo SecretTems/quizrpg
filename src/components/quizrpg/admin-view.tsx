@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, ShieldCheck, Trash2, UserCog, LibraryBig, Swords, Users } from "lucide-react";
+import { Loader2, ShieldCheck, Trash2, UserCog, LibraryBig, Swords, Users, Search, Check, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -16,6 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
 import { api, useAuth } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +36,8 @@ interface AdminUser {
 
 interface AdminData {
   users: AdminUser[];
-  stats: { totalQuestions: number; globalQuestions: number; totalBattles: number; totalUsers: number };
+  stats: { totalQuestions: number; globalQuestions: number; totalBattles: number; totalUsers: number; pendingQuestions: number };
+  viewerRole: string;
 }
 
 export function AdminView() {
@@ -44,22 +46,43 @@ export function AdminView() {
   const [data, setData] = useState<AdminData | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [section, setSection] = useState<"players" | "admins">("players");
+  const isSuper = me?.role === "SUPER_ADMIN";
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setData(await api<AdminData>("/api/admin/users"));
+      const p = new URLSearchParams({ section });
+      if (search.trim()) p.set("search", search.trim());
+      setData(await api<AdminData>(`/api/admin/users?${p.toString()}`));
     } catch (err) {
       toast({ title: "Failed to load admin data", description: err instanceof Error ? err.message : "", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-     
-  }, []);
+  }, [section, search]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const p = new URLSearchParams({ section });
+        if (search.trim()) p.set("search", search.trim());
+        const d = await api<AdminData>(`/api/admin/users?${p.toString()}`);
+        if (!cancelled) setData(d);
+      } catch (err) {
+        if (!cancelled)
+          toast({ title: "Failed to load admin data", description: err instanceof Error ? err.message : "", variant: "destructive" });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [section, search]);
 
   async function toggleRole(u: AdminUser) {
     setBusyId(u.id);
@@ -99,17 +122,21 @@ export function AdminView() {
   }
 
   const statCards = [
-    { icon: <Users className="h-4 w-4" />, label: "Registered users", value: data.stats.totalUsers },
-    { icon: <LibraryBig className="h-4 w-4" />, label: "Global questions", value: data.stats.globalQuestions },
-    { icon: <LibraryBig className="h-4 w-4" />, label: "All questions", value: data.stats.totalQuestions },
+    { icon: <Users className="h-4 w-4" />, label: section === "admins" ? "Admins & supers" : "Registered users", value: data.stats.totalUsers },
+    { icon: <LibraryBig className="h-4 w-4" />, label: "Official questions", value: data.stats.globalQuestions },
     { icon: <Swords className="h-4 w-4" />, label: "Battles fought", value: data.stats.totalBattles },
+    { icon: <Clock className="h-4 w-4" />, label: "Pending approvals", value: data.stats.pendingQuestions },
   ];
 
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="font-display text-lg">🛡️ Admin Command Center</h2>
-        <p className="text-sm text-muted-foreground">Manage player accounts and monitor system activity.</p>
+        <h2 className="font-display text-lg">{isSuper ? "👑 Super Admin Command Center" : "🛡️ Admin Command Center"}</h2>
+        <p className="text-sm text-muted-foreground">
+          {isSuper
+            ? "Full control: manage admins, players and question approvals."
+            : "Manage the question bank and review submissions. Role management is reserved for super admins."}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -125,6 +152,42 @@ export function AdminView() {
           </Card>
         ))}
       </div>
+
+      {/* section tabs + search */}
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-2 p-3">
+          <div className="flex rounded-lg border border-border p-0.5">
+            <button
+              onClick={() => setSection("players")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                section === "players" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Swords className="h-3.5 w-3.5" /> Players
+            </button>
+            <button
+              onClick={() => setSection("admins")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                section === "admins" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" /> Admins
+            </button>
+          </div>
+          <div className="relative min-w-44 flex-1">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by username or display name…"
+              className="pl-8"
+              aria-label="Search users"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="p-0">
@@ -162,10 +225,10 @@ export function AdminView() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            disabled={isMe || u.role === "SUPER_ADMIN" || busyId === u.id}
+                            disabled={!isSuper || isMe || u.role === "SUPER_ADMIN" || busyId === u.id}
                             onClick={() => void toggleRole(u)}
                             aria-label={u.role === "ADMIN" ? `Demote ${u.username} to player` : `Promote ${u.username} to admin`}
-                            title={u.role === "ADMIN" ? "Demote to player" : "Promote to admin"}
+                            title={isSuper ? (u.role === "ADMIN" ? "Demote to player" : "Promote to admin") : "Only super admins can change roles"}
                           >
                             {busyId === u.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserCog className="h-3.5 w-3.5" />}
                           </Button>
@@ -175,7 +238,7 @@ export function AdminView() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-destructive"
-                                disabled={isMe || u.role === "SUPER_ADMIN" || busyId === u.id}
+                                disabled={!isSuper || isMe || u.role === "SUPER_ADMIN" || busyId === u.id}
                                 aria-label={`Delete user ${u.username}`}
                                 title="Delete user"
                               >
@@ -209,7 +272,10 @@ export function AdminView() {
       </Card>
 
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <ShieldCheck className="h-3.5 w-3.5" /> Only admins can see this tab. Promote trusted moderators carefully — admins can edit the global question bank.
+        <ShieldCheck className="h-3.5 w-3.5" />
+        {isSuper
+          ? "As super admin you can promote/demote admins and delete accounts. Admins manage content and approvals."
+          : "Admins manage questions and approvals. Promoting/demoting and deleting accounts is reserved for super admins (👑)."}
       </p>
     </div>
   );

@@ -134,12 +134,6 @@ export function AuthScreen() {
                 </form>
               </TabsContent>
             </Tabs>
-
-            <div className="mt-4 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground leading-relaxed">
-              <p className="font-semibold text-foreground mb-0.5">Demo accounts</p>
-              <p>Admin — <code className="font-mono">admin / admin123</code></p>
-              <p>Player — <code className="font-mono">hero / hero123</code></p>
-            </div>
           </CardContent>
         </Card>
 

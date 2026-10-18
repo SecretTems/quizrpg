@@ -18,12 +18,14 @@ export interface SafeUser {
 export interface QuestionDTO {
   id: string;
   subject: string;
-  difficulty: "EASY" | "MEDIUM" | "HARD";
+  difficulty: "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER";
   text: string;
   options: string[];
   correctIndex: number;
   explanation: string;
   ownerId: string | null;
+  status: "OFFICIAL" | "CUSTOM" | "PENDING" | "REJECTED";
+  reviewNote: string;
   ownerUsername?: string | null;
   createdAt: string;
 }
@@ -32,6 +34,8 @@ export interface BattleStateDTO {
   id: string;
   subject: string;
   tier: number;
+  mode: "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER" | "INFINITE";
+  wave: number;
   enemyName: string;
   enemySprite: string;
   enemyMaxHp: number;
@@ -47,10 +51,12 @@ export interface BattleStateDTO {
     id: string;
     text: string;
     options: string[];
-    difficulty: "EASY" | "MEDIUM" | "HARD";
+    difficulty: "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER";
+    status: "OFFICIAL" | "PENDING" | "REJECTED" | "CUSTOM";
   } | null;
   questionNumber: number;
   totalSeen: number;
+  waveNumber: number;
 }
 
 export interface AnswerResultDTO {
@@ -74,6 +80,8 @@ export interface AnswerResultDTO {
   newLevel: number;
   unlockedTier: EnemyTier | null;
   victoryBonus: { xp: number; score: number } | null;
+  waveCleared: boolean;
+  waveNumber: number;
 }
 
 export interface LeaderboardEntry {

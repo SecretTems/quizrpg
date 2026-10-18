@@ -6,8 +6,8 @@
     "dev": "next dev -p 3000",
     "dev:memory": "node scripts/dev-memory.mjs",
     "seed": "node --env-file=.env scripts/seed.mjs",
-    "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
-    "start": "NODE_ENV=production node .next/standalone/server.js",
+    "build": "next build && node scripts/standalone.mjs",
+    "start": "node .next/standalone/server.js",
     "lint": "eslint ."
   },
   "dependencies": {

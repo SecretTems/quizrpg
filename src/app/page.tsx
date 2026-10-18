@@ -12,7 +12,18 @@ export default function Home() {
   const refresh = useAuth((s) => s.refresh);
 
   useEffect(() => {
-    void refresh();
+    let cancelled = false;
+    (async () => {
+      try {
+        await refresh();
+      } catch {
+        /* session check is best-effort */
+      }
+    })();
+    void cancelled;
+    return () => {
+      cancelled = true;
+    };
   }, [refresh]);
 
   if (loading) {

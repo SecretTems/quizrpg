@@ -9,8 +9,9 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
   await connectDB();
+  // official subjects (approved content) + the caller's own custom subjects
   const subjects = await Question.distinct("subject", {
-    $or: [{ ownerId: null }, { ownerId: user.id }],
+    $or: [{ status: "OFFICIAL" }, { ownerId: user.id }],
   });
 
   return NextResponse.json({ subjects: (subjects as string[]).sort() });

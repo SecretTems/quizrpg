@@ -3,12 +3,14 @@
  * Shared by API routes (server-authoritative) and UI (display only).
  */
 
-export type Difficulty = "EASY" | "MEDIUM" | "HARD";
+export type Difficulty = "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER";
 
 export interface EnemyTier {
   tier: number;
   name: string;
   sprite: string;
+  /** opponent category, e.g. "Grade 8", "Grade 9", "Subject Champion" */
+  category: string;
   maxHp: number;
   atkMin: number;
   atkMax: number;
@@ -23,6 +25,7 @@ export const ENEMY_TIERS: EnemyTier[] = [
     tier: 1,
     name: "Slime Scholar",
     sprite: "🟢",
+    category: "Grade 8",
     maxHp: 60,
     atkMin: 6,
     atkMax: 9,
@@ -33,8 +36,22 @@ export const ENEMY_TIERS: EnemyTier[] = [
   },
   {
     tier: 2,
+    name: "Grammar Goblin",
+    sprite: "📕",
+    category: "Grade 8",
+    maxHp: 80,
+    atkMin: 8,
+    atkMax: 11,
+    unlockLevel: 1,
+    victoryXp: 55,
+    victoryScore: 130,
+    blurb: "Lurks in vocabulary and parts of speech.",
+  },
+  {
+    tier: 3,
     name: "Rune Golem",
     sprite: "🗿",
+    category: "Grade 9",
     maxHp: 100,
     atkMin: 10,
     atkMax: 14,
@@ -44,9 +61,23 @@ export const ENEMY_TIERS: EnemyTier[] = [
     blurb: "Ancient stone guarded by trickier questions.",
   },
   {
-    tier: 3,
+    tier: 4,
+    name: "Algebra Owl",
+    sprite: "🦉",
+    category: "Grade 9",
+    maxHp: 120,
+    atkMin: 11,
+    atkMax: 16,
+    unlockLevel: 4,
+    victoryXp: 110,
+    victoryScore: 270,
+    blurb: "Wise in equations, merciless in timed drills.",
+  },
+  {
+    tier: 5,
     name: "Cipher Wraith",
     sprite: "👻",
+    category: "Grade 10",
     maxHp: 150,
     atkMin: 13,
     atkMax: 18,
@@ -56,9 +87,23 @@ export const ENEMY_TIERS: EnemyTier[] = [
     blurb: "A spectral puzzle-master that punishes wrong answers.",
   },
   {
-    tier: 4,
+    tier: 6,
+    name: "Lab Lich",
+    sprite: "🧪",
+    category: "Grade 10",
+    maxHp: 180,
+    atkMin: 15,
+    atkMax: 20,
+    unlockLevel: 6,
+    victoryXp: 190,
+    victoryScore: 430,
+    blurb: "Rules the laboratory with chemistry and physics riddles.",
+  },
+  {
+    tier: 7,
     name: "Quiz Dragon",
     sprite: "🐉",
+    category: "Subject Champion",
     maxHp: 220,
     atkMin: 17,
     atkMax: 23,
@@ -66,6 +111,19 @@ export const ENEMY_TIERS: EnemyTier[] = [
     victoryXp: 240,
     victoryScore: 550,
     blurb: "The final exam incarnate. Only true champions prevail.",
+  },
+  {
+    tier: 8,
+    name: "Grandmaster Sphinx",
+    sprite: "🦁",
+    category: "Subject Champion",
+    maxHp: 280,
+    atkMin: 20,
+    atkMax: 27,
+    unlockLevel: 12,
+    victoryXp: 320,
+    victoryScore: 780,
+    blurb: "Master of every subject. Answers wrongly and beware.",
   },
 ];
 
@@ -85,12 +143,16 @@ const DIFFICULTY_DAMAGE: Record<Difficulty, number> = {
   EASY: 14,
   MEDIUM: 20,
   HARD: 28,
+  EXPERT: 34,
+  MASTER: 42,
 };
 
 const DIFFICULTY_XP: Record<Difficulty, number> = {
   EASY: 10,
   MEDIUM: 20,
   HARD: 30,
+  EXPERT: 40,
+  MASTER: 55,
 };
 
 export function streakBonus(streak: number): number {
@@ -145,9 +207,9 @@ export function computeAnswer(
 
 /* ---------- leveling ---------- */
 
-/** XP required to advance FROM level n to n+1. */
+/** XP required to advance FROM level n to n+1 — steeper curve for a longer grind. */
 export function xpToNextLevel(level: number): number {
-  return 100 + (level - 1) * 50;
+  return 200 + (level - 1) * 120;
 }
 
 export function levelFromXp(xp: number): number {
@@ -176,26 +238,122 @@ export function tiersUnlocked(level: number): EnemyTier[] {
 
 /* ---------- battle composition ---------- */
 
-export const QUESTIONS_PER_WAVE = 10;
+/** Standard battle modes are pinned to a difficulty; INFINITE escalates wave by wave. */
+export type BattleModeId = Difficulty | "INFINITE";
 
-/** Difficulty mix per enemy tier — harder tiers pull harder questions. */
-export function tierDifficultyWeights(tier: number): Record<Difficulty, number> {
-  switch (tier) {
-    case 1:
-      return { EASY: 0.6, MEDIUM: 0.4, HARD: 0 };
-    case 2:
-      return { EASY: 0.4, MEDIUM: 0.4, HARD: 0.2 };
-    case 3:
-      return { EASY: 0.2, MEDIUM: 0.5, HARD: 0.3 };
-    default:
-      return { EASY: 0.1, MEDIUM: 0.4, HARD: 0.5 };
-  }
+/**
+ * Progressive battle modes. Each standard mode draws ONLY its own difficulty
+ * and has a fixed question count with a scaling victory reward. INFINITE is
+ * endless: waves get progressively harder until the player falls.
+ */
+export interface BattleMode {
+  id: BattleModeId;
+  label: string;
+  description: string;
+  /** questions per wave (INFINITE draws this many each wave, endlessly) */
+  questionCount: number;
+  rewardXp: number;
+  rewardScore: number;
+  unlockLevel: number;
+  infinite?: boolean;
 }
 
-export function pickDifficulty(tier: number): Difficulty {
-  const w = tierDifficultyWeights(tier);
-  const r = Math.random();
-  if (r < w.EASY) return "EASY";
-  if (r < w.EASY + w.MEDIUM) return "MEDIUM";
-  return "HARD";
+export const INFINITE_WAVE_SIZE = 5;
+
+/**
+ * Difficulty ladder for INFINITE mode. Each wave uses one difficulty band:
+ * wave 1–2 EASY, 3–4 MEDIUM, 5–6 HARD, 7–8 EXPERT, 9+ MASTER.
+ * Within a band the questions are that difficulty, so the mode "progressively
+ * gets harder" the longer you survive.
+ */
+export function infiniteDifficulty(wave: number): Difficulty {
+  if (wave <= 2) return "EASY";
+  if (wave <= 4) return "MEDIUM";
+  if (wave <= 6) return "HARD";
+  if (wave <= 8) return "EXPERT";
+  return "MASTER";
+}
+
+/** Per-wave clear bonus for INFINITE mode (scales with wave number). */
+export function infiniteWaveBonus(wave: number): { xp: number; score: number } {
+  return { xp: 20 + wave * 10, score: 40 + wave * 25 };
+}
+
+export const BATTLE_MODES: BattleMode[] = [
+  {
+    id: "EASY",
+    label: "Easy Grind",
+    description: "5 easy questions. Low stakes, gentle rewards.",
+    questionCount: 5,
+    rewardXp: 30,
+    rewardScore: 60,
+    unlockLevel: 1,
+  },
+  {
+    id: "MEDIUM",
+    label: "Medium Trial",
+    description: "10 medium questions. Fair challenge, decent rewards.",
+    questionCount: 10,
+    rewardXp: 70,
+    rewardScore: 160,
+    unlockLevel: 2,
+  },
+  {
+    id: "HARD",
+    label: "Hard Gauntlet",
+    description: "20 hard questions. High risk, high reward.",
+    questionCount: 20,
+    rewardXp: 140,
+    rewardScore: 340,
+    unlockLevel: 3,
+  },
+  {
+    id: "EXPERT",
+    label: "Expert Abyss",
+    description: "30 expert questions. For seasoned veterans only.",
+    questionCount: 30,
+    rewardXp: 240,
+    rewardScore: 600,
+    unlockLevel: 6,
+  },
+  {
+    id: "MASTER",
+    label: "Master Trial",
+    description: "50 master questions. The ultimate test of mastery.",
+    questionCount: 50,
+    rewardXp: 400,
+    rewardScore: 1000,
+    unlockLevel: 10,
+  },
+  {
+    id: "INFINITE",
+    label: "Infinite Gauntlet",
+    description: "Endless waves that keep getting harder. Survive as long as you can.",
+    questionCount: INFINITE_WAVE_SIZE,
+    rewardXp: 0,
+    rewardScore: 0,
+    unlockLevel: 5,
+    infinite: true,
+  },
+];
+
+export function getMode(id: BattleModeId): BattleMode {
+  return BATTLE_MODES.find((m) => m.id === id) ?? BATTLE_MODES[0];
+}
+
+export function isBattleModeId(id: string): id is BattleModeId {
+  return BATTLE_MODES.some((m) => m.id === id);
+}
+
+export function modesUnlocked(level: number): BattleMode[] {
+  return BATTLE_MODES.filter((m) => m.unlockLevel <= level);
+}
+
+/**
+ * Question difficulty for a battle. Standard modes pin one difficulty; the
+ * INFINITE mode escalates based on the current wave number.
+ */
+export function pickDifficulty(mode: BattleModeId, wave = 1): Difficulty {
+  if (mode === "INFINITE") return infiniteDifficulty(wave);
+  return mode;
 }

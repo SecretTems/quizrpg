@@ -3,61 +3,91 @@ import { Question, normalizeQuestion, type NormalizedQuestion } from "@/lib/mode
 import {
   getTier,
   playerMaxHp,
-  pickDifficulty,
   levelProgress,
-  QUESTIONS_PER_WAVE,
+  getMode,
+  pickDifficulty,
   ENEMY_TIERS,
+  type Difficulty,
   type EnemyTier,
 } from "@/lib/game";
+import type { BattleModeId } from "@/lib/game";
 import type { BattleStateDTO } from "@/lib/types";
 
 export interface BattleQuestion {
   id: string;
   text: string;
   options: string[];
-  difficulty: "EASY" | "MEDIUM" | "HARD";
+  difficulty: Difficulty;
+  status: "OFFICIAL" | "PENDING" | "REJECTED" | "CUSTOM";
 }
 
 /**
- * Draw a wave of questions: prefers the chosen subject (global + player-owned);
- * falls back to the global pool (any subject) when the pool is too small.
+ * Draw `wanted` questions for a battle mode.
+ *
+ * Rules:
+ * - players draw from the OFFICIAL bank plus their own CUSTOM questions;
+ * - questions never repeat inside one battle unless the eligible pool is
+ *   smaller than the question count;
+ * - falls back to the official pool of other subjects when the chosen subject
+ *   is too small.
  */
 export async function drawWave(
   subject: string,
   userId: string,
   tier: number,
+  mode: BattleModeId,
+  wave = 1,
   excludeIds: string[] = [],
+  customOnly = false,
 ): Promise<BattleQuestion[]> {
   await connectDB();
-  const wanted = QUESTIONS_PER_WAVE;
+  const wanted = getMode(mode).questionCount;
+  const difficulty = pickDifficulty(mode, wave);
 
-  const poolDocs = await Question.find({ $or: [{ ownerId: null }, { ownerId: userId }] }).lean();
+  // official bank + the player's own custom questions (user-made questions are
+  // only visible to their creator unless made official)
+  const poolDocs = await Question.find(
+    customOnly
+      ? { status: "CUSTOM", ownerId: userId }
+      : { $or: [{ status: "OFFICIAL" }, { status: "CUSTOM", ownerId: userId }] },
+  ).lean();
   if (poolDocs.length === 0) return [];
   const pool = poolDocs.map(normalizeQuestion);
 
   let subjectPool = subject === "ALL" ? pool : pool.filter((q) => q.subject === subject);
-  if (subjectPool.length < 5) {
-    // not enough in this subject — mix in global questions from other subjects
-    subjectPool = [...subjectPool, ...pool.filter((q) => q.ownerId === null && !subjectPool.includes(q))];
+  if (subjectPool.length < wanted && !customOnly) {
+    // not enough in this subject — mix in official questions from other subjects
+    subjectPool = [
+      ...subjectPool,
+      ...pool.filter((q) => q.status === "OFFICIAL" && q.subject !== subject),
+    ];
   }
-  if (subjectPool.length === 0) return [];
 
   const picked: NormalizedQuestion[] = [];
   const used = new Set<string>(excludeIds);
+  let allowRepeats = false;
+
   for (let i = 0; i < wanted; i++) {
-    const difficulty = pickDifficulty(tier);
     let candidates = subjectPool.filter((q) => q.difficulty === difficulty && !used.has(q.id));
     if (candidates.length === 0) candidates = subjectPool.filter((q) => !used.has(q.id));
     if (candidates.length === 0) {
-      // everything used — allow repeats
-      used.clear();
-      candidates = subjectPool.filter((q) => q.difficulty === difficulty);
-      if (candidates.length === 0) candidates = subjectPool;
+      // official bank is insufficient — only then allow repeats
+      if (allowRepeats) {
+        candidates = subjectPool.filter((q) => q.difficulty === difficulty);
+        if (candidates.length === 0) candidates = subjectPool;
+      } else {
+        allowRepeats = true;
+        used.clear();
+        candidates = subjectPool.filter((q) => q.difficulty === difficulty);
+        if (candidates.length === 0) candidates = subjectPool;
+      }
     }
+    if (candidates.length === 0) break;
     const choice = candidates[Math.floor(Math.random() * candidates.length)];
     used.add(choice.id);
     picked.push(choice);
   }
+
   return picked.map(toBattleQuestion);
 }
 
@@ -67,6 +97,7 @@ export function toBattleQuestion(q: NormalizedQuestion): BattleQuestion {
     text: q.text,
     options: q.options,
     difficulty: q.difficulty,
+    status: q.status,
   };
 }
 
@@ -76,6 +107,8 @@ export function toBattleState(
     id: string;
     subject: string;
     tier: number;
+    mode?: BattleModeId;
+    wave?: number;
     enemyName: string;
     enemyMaxHp: number;
     enemyHp: number;
@@ -92,11 +125,14 @@ export function toBattleState(
   currentQuestion: BattleQuestion | null,
 ): BattleStateDTO {
   const tier = getTier(battle.tier);
+  const mode = (battle.mode ?? "EASY") as BattleModeId;
   const ids = battle.questions;
   return {
     id: battle.id,
     subject: battle.subject,
     tier: battle.tier,
+    mode,
+    wave: battle.wave ?? 1,
     enemyName: battle.enemyName,
     enemySprite: tier.sprite,
     enemyMaxHp: battle.enemyMaxHp,
@@ -111,6 +147,7 @@ export function toBattleState(
     question: currentQuestion,
     questionNumber: Math.min(battle.cursor + 1, ids.length),
     totalSeen: ids.length,
+    waveNumber: battle.wave ?? 1,
   };
 }
 
@@ -124,4 +161,4 @@ export function newlyUnlockedTier(level: number): EnemyTier | null {
   return t ?? null;
 }
 
-export { getTier, playerMaxHp, levelProgress };
+export { getTier, playerMaxHp, levelProgress, getMode };

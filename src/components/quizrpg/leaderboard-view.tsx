@@ -58,14 +58,23 @@ export function LeaderboardView() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
     api<{ byScore: LeaderboardEntry[]; byXp: LeaderboardEntry[]; totalPlayers: number }>("/api/leaderboard")
       .then((d) => {
+        if (cancelled) return;
         setByScore(d.byScore);
         setByXp(d.byXp);
         setTotalPlayers(d.totalPlayers);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load leaderboard"))
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load leaderboard");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) {

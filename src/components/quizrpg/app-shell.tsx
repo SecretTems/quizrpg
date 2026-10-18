@@ -31,7 +31,10 @@ export function AppShell() {
 
   if (!user) return null;
   const lp = levelProgress(user.xp);
-  const tabs = user.role === "ADMIN" ? [...TABS, { id: "admin" as Tab, label: "Admin", icon: <ShieldCheck className="h-4 w-4" /> }] : TABS;
+  const tabs =
+    user.role === "ADMIN" || user.role === "SUPER_ADMIN"
+      ? [...TABS, { id: "admin" as Tab, label: user.role === "SUPER_ADMIN" ? "Super Admin" : "Admin", icon: <ShieldCheck className="h-4 w-4" /> }]
+      : TABS;
 
   function handleStatsChanged() {
     void refreshUser();
@@ -116,7 +119,7 @@ export function AppShell() {
         {tab === "bank" && <QuestionBankView />}
         {tab === "leaderboard" && <LeaderboardView />}
         {tab === "profile" && <ProfileView onStatsChanged={handleStatsChanged} />}
-        {tab === "admin" && user.role === "ADMIN" && <AdminView />}
+        {tab === "admin" && (user.role === "ADMIN" || user.role === "SUPER_ADMIN") && <AdminView />}
       </main>
 
       {/* footer sticks to bottom */}

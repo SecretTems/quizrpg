@@ -49,12 +49,16 @@ const DIFF_STYLES: Record<Difficulty, string> = {
   EASY: "bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border-emerald-600/40",
   MEDIUM: "bg-amber-600/15 text-amber-700 dark:text-amber-400 border-amber-600/40",
   HARD: "bg-red-600/15 text-red-700 dark:text-red-400 border-red-600/40",
+  EXPERT: "bg-violet-600/15 text-violet-700 dark:text-violet-400 border-violet-600/40",
+  MASTER: "bg-fuchsia-600/15 text-fuchsia-700 dark:text-fuchsia-400 border-fuchsia-600/40",
 };
 
 const DIFF_LABEL: Record<Difficulty, string> = {
   EASY: "Easy",
   MEDIUM: "Medium",
   HARD: "Hard",
+  EXPERT: "Expert",
+  MASTER: "Master",
 };
 
 export function DifficultyBadge({ difficulty, className }: { difficulty: Difficulty; className?: string }) {
@@ -79,6 +83,10 @@ const SUBJECT_ICONS: Record<string, string> = {
   History: "🏛️",
   English: "📚",
   Programming: "💻",
+  Filipino: "🇵🇭",
+  "Araling Panlipunan": "🌏",
+  Edukasyon: "🧭",
+  Custom: "🧩",
 };
 
 export function subjectIcon(subject: string): string {
@@ -94,5 +102,21 @@ export function StatChip({ icon, label, value }: { icon: string; label: string; 
       <span className="mt-1 text-sm font-bold tabular-nums">{value}</span>
       <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
     </div>
+  );
+}
+
+/* ---------- question status badge ---------- */
+
+export function StatusBadge({ status }: { status: "OFFICIAL" | "CUSTOM" | "PENDING" | "REJECTED" }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    OFFICIAL: { label: "★ Official", cls: "bg-sky-600/15 text-sky-700 dark:text-sky-400 border-sky-600/40" },
+    CUSTOM: { label: "🧩 Custom", cls: "bg-slate-600/15 text-slate-700 dark:text-slate-400 border-slate-600/40" },
+    PENDING: { label: "⏳ Pending", cls: "bg-amber-600/15 text-amber-700 dark:text-amber-400 border-amber-600/40" },
+    REJECTED: { label: "✖ Rejected", cls: "bg-red-600/15 text-red-700 dark:text-red-400 border-red-600/40" },
+  };
+  const s = map[status];
+  if (!s) return null;
+  return (
+    <span className={cn("rounded-md border px-2 py-0.5 text-[10px] font-bold", s.cls)}>{s.label}</span>
   );
 }
