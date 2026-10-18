@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Lock, Loader2, Play, Swords, RotateCcw, Trophy, Skull, ArrowUpCircle, Sparkles } from "lucide-react";
+import { Lock, Loader2, Play, Swords, RotateCcw, Trophy, Skull, ArrowUpCircle, Sparkles, Shield, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { api, useAuth } from "@/lib/store";
-import { ENEMY_TIERS, BATTLE_MODES, levelProgress, getMode, type BattleModeId } from "@/lib/game";
+import { ENEMY_TIERS, BATTLE_MODES, levelProgress, type BattleModeId } from "@/lib/game";
 import { subjectIcon } from "@/components/quizrpg/bits";
 import { BattleScreen } from "@/components/quizrpg/battle-screen";
 import { EquipmentView } from "@/components/quizrpg/equipment-view";
@@ -36,7 +36,6 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
 
   const [subjects, setSubjects] = useState<string[]>([]);
   const [subject, setSubject] = useState<string>("ALL");
-  const [customOnly, setCustomOnly] = useState(false);
   const [tier, setTier] = useState<number>(1);
   const [mode, setMode] = useState<BattleModeId>("EASY");
   const [categories, setCategories] = useState<NormalizedCategory[]>([]);
@@ -47,7 +46,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   const [starting, setStarting] = useState(false);
   const [result, setResult] = useState<AnswerResultDTO | null>(null);
   const [showResult, setShowResult] = useState(false);
-  const [lastMeta, setLastMeta] = useState<{ subject: string; tier: number; mode: BattleModeId; customOnly: boolean; categoryId: string | null; enemyName: string } | null>(null);
+  const [lastMeta, setLastMeta] = useState<{ subject: string; tier: number; mode: BattleModeId; categoryId: string | null; enemyName: string } | null>(null);
 
   /* Play modal + side feature dialogs */
   const [showPlayModal, setShowPlayModal] = useState(false);
@@ -57,6 +56,21 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   const [profile, setProfile] = useState<NormalizedUser | null>(null);
 
   const level = user ? levelProgress(user.xp).level : 1;
+
+  /**
+   * Re-fetch the full profile snapshot (gold/gems/backpack/equipment) that the
+   * Shop, Gacha and Equipment dialogs render — the auth store copy doesn't
+   * carry those fields, so the dialogs need this after every wallet change.
+   */
+  const refreshProfile = useCallback(async () => {
+    try {
+      const p = await api<{ user: NormalizedUser }>("/api/auth/me");
+      setProfile(p.user);
+    } catch {
+      /* keep the previous snapshot */
+    }
+    void refreshUser();
+  }, [refreshUser]);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,8 +86,8 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
         setSubjects(d.subjects);
         setResumable(b.battle);
         setProfile(p.user);
-        // only playable categories: official ones and the player's own approved customs
-        setCategories(c.categories.filter((cat) => cat.status === "OFFICIAL" || cat.status === "CUSTOM"));
+        // GET already scopes: official categories + your own (private/pending) ones
+        setCategories(c.categories);
       } catch {
         if (!cancelled) {
           setSubjects([]);
@@ -87,17 +101,17 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   }, []);
 
   const startBattle = useCallback(
-    async (subj: string, t: number, m: BattleModeId, useCustomOnly = customOnly, catId: string | null = null) => {
+    async (subj: string, t: number, m: BattleModeId, catId: string | null = null) => {
       setStarting(true);
       try {
         const data = await api<{ battle: BattleStateDTO }>("/api/battle", {
           method: "POST",
-          body: JSON.stringify({ subject: subj, tier: t, mode: m, customOnly: useCustomOnly, categoryId: catId ?? undefined }),
+          body: JSON.stringify({ subject: subj, tier: t, mode: m, categoryId: catId ?? undefined }),
         });
         setBattle(data.battle);
         setResumable(null);
         setShowPlayModal(false);
-        setLastMeta({ subject: subj, tier: t, mode: m, customOnly: useCustomOnly, categoryId: data.battle.categoryId, enemyName: data.battle.enemyName });
+        setLastMeta({ subject: subj, tier: t, mode: m, categoryId: data.battle.categoryId, enemyName: data.battle.enemyName });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Could not start battle.";
         if (message.toLowerCase().includes("ongoing")) {
@@ -108,7 +122,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
               setBattle(d.battle);
               setResumable(null);
               setShowPlayModal(false);
-              setLastMeta({ subject: d.battle.subject, tier: d.battle.tier, mode: d.battle.mode, customOnly: false, categoryId: d.battle.categoryId, enemyName: d.battle.enemyName });
+              setLastMeta({ subject: d.battle.subject, tier: d.battle.tier, mode: d.battle.mode, categoryId: d.battle.categoryId, enemyName: d.battle.enemyName });
               return;
             }
           } catch { /* fall through */ }
@@ -118,7 +132,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
         setStarting(false);
       }
     },
-    [toast, customOnly],
+    [toast],
   );
 
   function handleBattleEnd(r: AnswerResultDTO | null) {
@@ -133,7 +147,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
         toast({ title: "🗝️ New challenger unlocked!", description: `${r.unlockedTier.sprite} ${r.unlockedTier.name} awaits at Tier ${r.unlockedTier.tier}.` });
       }
     }
-    void refreshUser();
+    void refreshProfile();
     onStatsChanged();
   }
 
@@ -276,7 +290,6 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                   </span>
                 )}
                 <span className="block font-display text-xs">{m.label}</span>
-                <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">{m.description}</span>
                 <span className="mt-2 flex flex-wrap gap-1 text-[10px] font-bold">
                   <span className="rounded bg-sky-600/15 px-1.5 py-0.5 text-sky-600 dark:text-sky-400">{m.questionCount} Qs</span>
                   <span className="rounded bg-[color-mix(in_oklab,var(--xp)_18%,transparent)] px-1.5 py-0.5 text-[var(--xp)]">+{m.rewardXp} XP</span>
@@ -360,17 +373,40 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                           : "border-border hover:border-primary/50 hover:bg-accent",
                       )}
                     >
-                      <span className={cn("block text-4xl", active && "animate-floaty")} aria-hidden="true">
-                        {c.enemy.emoji}
-                      </span>
-                      <span className="mt-2 block font-display text-xs">{c.enemy.name}</span>
+                      {c.icon ? (
+                        <img src={c.icon} alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
+                      ) : (
+                        <span className={cn("block text-4xl", active && "animate-floaty")} aria-hidden="true">
+                          {c.monsters?.[0]?.emoji || c.enemy.emoji}
+                        </span>
+                      )}
+                      <span className="mt-2 block font-display text-xs">{c.name}</span>
+                      {c.status !== "OFFICIAL" && c.ownerId === user?.id && (
+                        <span className="mt-1 inline-flex w-fit rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                          {c.status === "PENDING"
+                            ? "⏳ Pending approval"
+                            : c.status === "REJECTED"
+                              ? "✖ Rejected"
+                              : "🧩 Private"}
+                        </span>
+                      )}
                       <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">
                         {c.description || `Guardian of ${c.name}`}
                       </span>
                       <span className="mt-1 block text-[11px] text-muted-foreground">📚 {c.subjects.join(" · ")}</span>
                       <span className="mt-2 flex flex-wrap gap-1 text-[10px] font-bold">
-                        <span className="rounded bg-red-600/15 px-1.5 py-0.5 text-red-600 dark:text-red-400">HP {c.enemy.baseHp}</span>
-                        <span className="rounded bg-orange-600/15 px-1.5 py-0.5 text-orange-600 dark:text-orange-400">ATK {c.enemy.atkMin}–{c.enemy.atkMax}</span>
+                        {(c.monsters?.length ?? 0) > 0 ? (
+                          <>
+                            <span className="rounded bg-purple-600/15 px-1.5 py-0.5 text-purple-600 dark:text-purple-400">👾 ×{c.monsters!.length}</span>
+                            <span className="rounded bg-red-600/15 px-1.5 py-0.5 text-red-600 dark:text-red-400">HP {c.monsters![0].hp}</span>
+                            <span className="rounded bg-orange-600/15 px-1.5 py-0.5 text-orange-600 dark:text-orange-400">ATK {c.monsters![0].atkMin}–{c.monsters![0].atkMax}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="rounded bg-red-600/15 px-1.5 py-0.5 text-red-600 dark:text-red-400">HP {c.enemy.baseHp}</span>
+                            <span className="rounded bg-orange-600/15 px-1.5 py-0.5 text-orange-600 dark:text-orange-400">ATK {c.enemy.atkMin}–{c.enemy.atkMax}</span>
+                          </>
+                        )}
                       </span>
                     </button>
                   );
@@ -381,20 +417,9 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
         </CardContent>
       </Card>
 
-        {/* custom bank toggle + start */}
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-xs font-semibold">
-          <input
-            type="checkbox"
-            className="h-3.5 w-3.5 accent-[var(--primary)]"
-            checked={customOnly}
-            onChange={(e) => setCustomOnly(e.target.checked)}
-          />
-          🧩 Custom bank only
-          <span className="font-normal text-muted-foreground">(practice — no rewards)</span>
-        </label>
         <DialogFooter className="gap-2 sm:justify-between">
           <Button variant="outline" onClick={() => setShowPlayModal(false)}>Cancel</Button>
-          <Button className="gap-2" disabled={starting} onClick={() => void startBattle(subject, tier, mode, customOnly, categoryId)}>
+          <Button className="gap-2" disabled={starting} onClick={() => void startBattle(subject, tier, mode, categoryId)}>
             {starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />}
             {starting ? "Entering…" : "Start Battle"}
           </Button>
@@ -402,26 +427,74 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col items-center gap-2">
-        <Button size="lg" className="gap-2 px-16 py-3.5 text-lg font-bold shadow-lg" onClick={() => setShowPlayModal(true)}>
-          <Play className="h-5 w-5 mr-2" />
-          Play
+      {/* main action buttons */}
+      <div className="mx-auto flex w-full max-w-xl flex-col gap-3">
+        <Button
+          className="h-auto w-full items-start gap-4 px-5 py-5 text-left shadow-lg"
+          onClick={() => setShowPlayModal(true)}
+        >
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/20" aria-hidden="true">
+            <Play className="h-7 w-7" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-2xl leading-tight">Play</span>
+            <span className="mt-1 block text-sm font-normal opacity-90">
+              Pick a subject, difficulty, and opponent — then battle it out.
+            </span>
+          </span>
         </Button>
-        <div className="flex gap-2 items-center">
-          <Button size="sm" title="Equipment" onClick={() => setShowEquipment(true)}>
-            Equipment
-          </Button>
-          <Button size="sm" title="Shop" onClick={() => setShowShop(true)}>
-            Shop
-          </Button>
-          <Button size="sm" title="Gacha" onClick={() => setShowGacha(true)}>
-            Gacha
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {lp.current}/{lp.needed} XP into level {lp.level} · {getMode(mode).questionCount} questions ({getMode(mode).label}) · 30s each
-        </p>
+
+        <Button
+          variant="outline"
+          className="h-auto w-full items-start gap-3 px-4 py-3 text-left"
+          onClick={() => setShowEquipment(true)}
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
+            <Shield className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold">Equipment</span>
+            <span className="block text-xs font-normal text-muted-foreground">
+              Equip weapons, armor, and accessories you&apos;ve earned.
+            </span>
+          </span>
+        </Button>
+
+        <Button
+          variant="outline"
+          className="h-auto w-full items-start gap-3 px-4 py-3 text-left"
+          onClick={() => setShowShop(true)}
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
+            <ShoppingBag className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold">Shop</span>
+            <span className="block text-xs font-normal text-muted-foreground">
+              Spend gold on potions, boosts, and bombs.
+            </span>
+          </span>
+        </Button>
+
+        <Button
+          variant="outline"
+          className="h-auto w-full items-start gap-3 px-4 py-3 text-left"
+          onClick={() => setShowGacha(true)}
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
+            <Sparkles className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold">Gacha</span>
+            <span className="block text-xs font-normal text-muted-foreground">
+              Spend gems for a chance at rare and legendary gear.
+            </span>
+          </span>
+        </Button>
       </div>
+      <p className="text-center text-xs text-muted-foreground">
+        {lp.current}/{lp.needed} XP into level {lp.level}
+      </p>
 
       {/* result dialog */}
       <Dialog open={showResult} onOpenChange={setShowResult}>
@@ -464,6 +537,22 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                 </div>
               </div>
 
+              {((result.goldDrop ?? 0) > 0 || (result.gemDrop ?? 0) > 0) && (
+                <div className="rounded-lg border border-amber-600/40 bg-amber-500/10 px-3 py-2 text-center text-sm font-bold">
+                  {result.goldDrop > 0 && (
+                    <span className="text-amber-600 dark:text-amber-400">💰 +{result.goldDrop} gold</span>
+                  )}
+                  {result.goldDrop > 0 && result.gemDrop > 0 && (
+                    <span className="mx-2 text-muted-foreground">·</span>
+                  )}
+                  {result.gemDrop > 0 && (
+                    <span className="text-sky-600 dark:text-sky-400">
+                      💎 +{result.gemDrop} {result.gemDrop === 1 ? "gem" : "gems"}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {result.leveledUp && (
                 <div className="flex items-center gap-2 rounded-lg border border-[var(--xp)]/40 bg-[color-mix(in_oklab,var(--xp)_12%,transparent)] px-3 py-2 text-sm font-bold">
                   <ArrowUpCircle className="h-4 w-4 text-[var(--xp)]" /> Level up! You are now level {result.newLevel}.
@@ -483,7 +572,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                   className="gap-1.5"
                   onClick={() => {
                     setShowResult(false);
-                    void startBattle(lastMeta?.subject ?? subject, lastMeta?.tier ?? tier, lastMeta?.mode ?? mode, lastMeta?.customOnly ?? customOnly, lastMeta?.categoryId ?? null);
+                    void startBattle(lastMeta?.subject ?? subject, lastMeta?.tier ?? tier, lastMeta?.mode ?? mode, lastMeta?.categoryId ?? null);
                   }}
                 >
                   <RotateCcw className="h-4 w-4" /> Battle Again
@@ -498,19 +587,19 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
         open={showEquipment}
         onOpenChange={setShowEquipment}
         user={profile}
-        onRefresh={() => void refreshUser()}
+        onRefresh={() => void refreshProfile()}
       />
       <ShopView
         open={showShop}
         onOpenChange={setShowShop}
         user={profile}
-        onRefresh={() => void refreshUser()}
+        onRefresh={() => void refreshProfile()}
       />
       <GachaView
         open={showGacha}
         onOpenChange={setShowGacha}
         user={profile}
-        onRefresh={() => void refreshUser()}
+        onRefresh={() => void refreshProfile()}
       />
     </div>
   );

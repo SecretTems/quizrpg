@@ -48,23 +48,11 @@ export function AdminView() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [section, setSection] = useState<"players" | "admins" | "categories">("players");
+  const [section, setSection] = useState<"players" | "admins" | "all">("players");
   const isSuper = me?.role === "SUPER_ADMIN";
 
   const [categories, setCategories] = useState<NormalizedCategory[]>([]);
   const [catLoading, setCatLoading] = useState(false);
-  const [catForm, setCatForm] = useState({
-    name: "",
-    description: "",
-    subjects: "English",
-    difficulties: "EASY,MEDIUM,HARD",
-    enemyName: "",
-    enemyEmoji: "👾",
-    enemyTier: 1,
-    enemyHp: 60,
-    enemyAtkMin: 6,
-    enemyAtkMax: 9,
-  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -205,114 +193,57 @@ export function AdminView() {
         ))}
       </div>
 
-      {section === "categories" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Categories</CardTitle>
-            <CardDescription>
-              Create and manage Adventure categories. Players create custom/pending categories; admins approve them to official.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Input
-                value={catForm.name}
-                onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
-                placeholder="Category name"
-              />
-              <Input
-                value={catForm.description}
-                onChange={(e) => setCatForm({ ...catForm, description: e.target.value })}
-                placeholder="Description"
-              />
-              <Input
-                value={catForm.subjects}
-                onChange={(e) => setCatForm({ ...catForm, subjects: e.target.value })}
-                placeholder="Subjects (comma separated)"
-              />
-              <Input
-                value={catForm.enemyName}
-                onChange={(e) => setCatForm({ ...catForm, enemyName: e.target.value })}
-                placeholder="Enemy name"
-              />
-            </div>
-            <Button
-              disabled={catLoading}
-              onClick={async () => {
-                try {
-                  await api("/api/categories", {
-                    method: "POST",
-                    body: JSON.stringify({
-                      name: catForm.name,
-                      description: catForm.description,
-                      subjects: catForm.subjects.split(",").map((s) => s.trim()).filter(Boolean),
-                      difficulties: catForm.difficulties.split(",").map((s) => s.trim()).filter(Boolean),
-                      enemy: {
-                        name: catForm.enemyName || catForm.name + " Guardian",
-                        emoji: catForm.enemyEmoji || "👾",
-                        tier: catForm.enemyTier,
-                        baseHp: catForm.enemyHp,
-                        atkMin: catForm.enemyAtkMin,
-                        atkMax: catForm.enemyAtkMax,
-                      },
-                    }),
-                  });
-                  toast({ title: "Category created" });
-                  await loadCategories();
-                  setCatForm({ ...catForm, name: "" });
-                } catch (err) {
-                  toast({ title: "Create failed", description: err instanceof Error ? err.message : "", variant: "destructive" });
-                }
-              }}
-            >
-              Create Category
-            </Button>
-            <div className="space-y-2">
-              {catLoading && categories.length === 0 && (
-                <p className="text-xs text-muted-foreground">Loading categories…</p>
-              )}
-              {!catLoading && categories.length === 0 && (
-                <p className="text-xs text-muted-foreground">No categories yet — create one above.</p>
-              )}
-              {categories.map((c) => (
-                <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/50 p-2 text-sm">
-                  <div className="min-w-0">
-                    <span className="font-medium">{c.enemy.emoji} {c.name}</span>
-                    <p className="truncate text-xs text-muted-foreground">{c.description}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        "rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-                        c.isOfficial ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-                      )}
-                    >
-                      {c.status}
-                    </span>
-                    {!c.isOfficial && (
-                      <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => void approveCategory(c.id)}>
-                        <Check className="h-3 w-3" /> Approve
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2 text-destructive hover:text-destructive"
-                      onClick={() => {
-                        if (typeof window !== "undefined" && window.confirm(`Delete the "${c.name}" category?`)) {
-                          void deleteCategory(c.id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
+      {/* category approvals — creation lives in the Bank's Category Maker */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Category approvals</CardTitle>
+          <CardDescription>
+            Player-submitted categories land here. Approve one to make it an official Adventure category
+            everyone can play, or reject it so it stays private to its owner. Creating categories lives in
+            the Bank → Category Maker.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {catLoading && categories.length === 0 && (
+            <p className="text-xs text-muted-foreground">Loading categories…</p>
+          )}
+          {!catLoading && categories.filter((c) => c.status === "PENDING").length === 0 && (
+            <p className="text-xs text-muted-foreground">Nothing waiting for approval. 🎉</p>
+          )}
+          {categories
+            .filter((c) => c.status === "PENDING")
+            .map((c) => (
+              <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/50 p-2 text-sm">
+                <div className="min-w-0">
+                  <span className="font-medium">
+                    {c.icon ? "🖼️" : c.monsters?.[0]?.emoji || c.enemy.emoji} {c.name}
+                  </span>
+                  <p className="truncate text-xs text-muted-foreground">{c.description}</p>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                <div className="flex items-center gap-2">
+                  <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                    {c.status}
+                  </span>
+                  <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => void approveCategory(c.id)}>
+                    <Check className="h-3 w-3" /> Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-destructive hover:text-destructive"
+                    onClick={() => {
+                      if (typeof window !== "undefined" && window.confirm(`Delete the "${c.name}" category?`)) {
+                        void deleteCategory(c.id);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+        </CardContent>
+      </Card>
 
       {/* section tabs + search */}
       <Card>
@@ -337,13 +268,13 @@ export function AdminView() {
               <ShieldCheck className="h-3.5 w-3.5" /> Admins
             </button>
             <button
-              onClick={() => setSection("categories")}
+              onClick={() => setSection("all")}
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
-                section === "categories" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                section === "all" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <LibraryBig className="h-3.5 w-3.5" /> Categories
+              <LibraryBig className="h-3.5 w-3.5" /> All
             </button>
           </div>
           <div className="relative min-w-44 flex-1">

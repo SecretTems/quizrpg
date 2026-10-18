@@ -13,7 +13,21 @@ export interface ItemDef {
   price: number;
   description: string;
   unique: boolean;
+  /**
+   * Optional artwork, e.g. "/images/items/w-iron-sword.png".
+   * See README → "Adding item images" for the full how-to.
+   * When omitted, the UI falls back to SLOT_ICON.
+   */
+  image?: string;
 }
+
+/** Fallback icon per slot, used when an item has no `image`. */
+export const SLOT_ICON: Record<ItemDef["slot"], string> = {
+  WEAPON: "⚔️",
+  ARMOR: "🛡️",
+  ACCESSORY: "💍",
+  CONSUMABLE: "🧪",
+};
 
 /** All items in the game. `price > 0` = buyable in shop; else gacha-only. */
 export const ITEMS: ItemDef[] = [

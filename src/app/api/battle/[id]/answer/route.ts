@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/db";
-import { Battle, Question, User, normalizeBattle, normalizeQuestion } from "@/lib/models";
+import { Battle, Question, User, normalizeBattle, normalizeQuestion, type BattleMonster } from "@/lib/models";
 import { getSessionUser } from "@/lib/auth";
 import { getTier, computeAnswer, levelProgress, getMode, infiniteWaveBonus } from "@/lib/game";
 import type { BattleModeId, EnemyTier } from "@/lib/game";
@@ -46,6 +46,10 @@ export async function POST(req: Request, { params }: Params) {
     battleDoc.enemyAtkMin != null && battleDoc.enemyAtkMax != null
       ? { ...baseTier, atkMin: battleDoc.enemyAtkMin, atkMax: battleDoc.enemyAtkMax }
       : baseTier;
+  // category battles carry a monster lineup — track where we are in it
+  const monsters: BattleMonster[] = (battleDoc.monsters ?? []) as BattleMonster[];
+  const currentMonsterIndex = battleDoc.monsterIndex ?? 0;
+  let nextMonsterIndex: number | null = null;
   const wasCorrect = choiceIndex === question.correctIndex;
 
   // user-made (custom/pending) questions are practice-only: no damage, no XP,
@@ -64,7 +68,7 @@ export async function POST(req: Request, { params }: Params) {
     : computeAnswer(question.difficulty as Difficulty, wasCorrect, battleDoc.streak, tier);
 
   // --- apply combat result ---
-  const enemyHp = Math.max(0, battleDoc.enemyHp - outcome.damageDealt);
+  let enemyHp = Math.max(0, battleDoc.enemyHp - outcome.damageDealt);
   const playerHp = Math.max(0, battleDoc.playerHp - outcome.damageTaken);
   const streak = outcome.streak;
   const bestStreak = Math.max(battleDoc.bestStreak, streak);
@@ -72,12 +76,10 @@ export async function POST(req: Request, { params }: Params) {
   const xpEarned = battleDoc.xpEarned + outcome.xpGained;
 
   const xpBefore = levelProgress(user.xp).level;
-  // Custom-only battles are practice matches — no victory/loss rewards or stats.
-  const noReward = battleDoc.mode === "customOnly";
 
   // XP accrues immediately so progress persists even mid-battle.
   // Custom (user-made) questions are practice-only — no XP and no streak stats.
-  if (!isCustom && !noReward) {
+  if (!isCustom) {
     await User.updateOne({ _id: user.id }, { $inc: { xp: outcome.xpGained } });
     if (streak > user.bestStreak) {
       await User.updateOne({ _id: user.id }, { $set: { bestStreak: streak } });
@@ -98,48 +100,67 @@ export async function POST(req: Request, { params }: Params) {
     if (isWaveEnd && enemyHp > 0 && playerHp > 0) {
       waveCleared = true;
       const bonus = infiniteWaveBonus(battleDoc.wave);
-      if (!noReward) {
-        await User.updateOne(
-          { _id: user.id },
-          { $inc: { xp: bonus.xp } },
-        );
-      }
-      victoryBonus = noReward ? { xp: 0, score: 0 } : bonus;
+      await User.updateOne(
+        { _id: user.id },
+        { $inc: { xp: bonus.xp } },
+      );
+      victoryBonus = bonus;
     }
 
   } else if (enemyHp <= 0) {
-    status = "WON";
-    victoryBonus = { xp: mode.rewardXp, score: mode.rewardScore + bestStreak * 10 };
-    if (!noReward && !isCustom) {
-      // Official enemies drop gold; harder enemies drop more and have a higher
-      // chance to drop a gem for the gacha.
-      goldDrop = Math.floor(8 + tier.tier * 6 + Math.random() * 10);
-      const gemChance = Math.min(0.05 + tier.tier * 0.03, 0.6);
-      if (Math.random() < gemChance) gemDrop = 1;
-      await User.updateOne(
-        { _id: user.id },
-        {
-          $inc: { xp: victoryBonus.xp, battlesWon: 1, gold: goldDrop, gems: gemDrop },
-          $max: { bestScore: score + victoryBonus.score },
-        },
-      );
-    } else if (!noReward) {
-      await User.updateOne(
-        { _id: user.id },
-        {
-          $inc: { xp: victoryBonus.xp, battlesWon: 1 },
-          $max: { bestScore: score + victoryBonus.score },
-        },
-      );
+    if (monsters.length > 0 && currentMonsterIndex < monsters.length - 1) {
+      // this monster fell — the next one in the category's lineup steps in
+      const nextIndex = currentMonsterIndex + 1;
+      nextMonsterIndex = nextIndex;
+      enemyHp = monsters[nextIndex].hp;
+    } else {
+      status = "WON";
+      victoryBonus = { xp: mode.rewardXp, score: mode.rewardScore + bestStreak * 10 };
+      if (!isCustom) {
+        // Official enemies drop gold; harder enemies drop more and have a higher
+        // chance to drop a gem for the gacha.
+        goldDrop = Math.floor(8 + tier.tier * 6 + Math.random() * 10);
+        const gemChance = Math.min(0.05 + tier.tier * 0.03, 0.6);
+        if (Math.random() < gemChance) gemDrop = 1;
+        await User.updateOne(
+          { _id: user.id },
+          {
+            $inc: { xp: victoryBonus.xp, battlesWon: 1, gold: goldDrop, gems: gemDrop },
+            $max: { bestScore: score + victoryBonus.score },
+          },
+        );
+      } else {
+        await User.updateOne(
+          { _id: user.id },
+          {
+            $inc: { xp: victoryBonus.xp, battlesWon: 1 },
+            $max: { bestScore: score + victoryBonus.score },
+          },
+        );
+      }
     }
   } else if (playerHp <= 0) {
     status = "LOST";
-    if (!noReward) {
-      await User.updateOne(
-        { _id: user.id },
-        { $inc: { battlesLost: 1 }, $max: { bestScore: score } },
-      );
-    }
+    await User.updateOne(
+      { _id: user.id },
+      { $inc: { battlesLost: 1 }, $max: { bestScore: score } },
+    );
+  }
+
+  // --- swap in the next monster of the lineup, if this one just fell ---
+  const nextMonster = nextMonsterIndex !== null ? monsters[nextMonsterIndex] : null;
+  if (nextMonster && nextMonsterIndex !== null) {
+    battleDoc.set({
+      monsterIndex: nextMonsterIndex,
+      enemyName: nextMonster.name,
+      enemySprite: nextMonster.emoji,
+      enemyImage: nextMonster.image ?? "",
+      enemyAtkMin: nextMonster.atkMin,
+      enemyAtkMax: nextMonster.atkMax,
+      enemyMaxHp: nextMonster.hp,
+      battleSubjects:
+        nextMonster.subjects.length > 0 ? nextMonster.subjects : battleDoc.battleSubjects,
+    });
   }
 
   // --- advance to next question / next wave ---
@@ -149,6 +170,24 @@ export async function POST(req: Request, { params }: Params) {
 
   if (status === "ONGOING") {
     cursor += 1;
+    if (nextMonster) {
+      // questions pre-drawn for the fallen monster are swapped for the new
+      // monster's own subject pool (falls back to the old remaining questions
+      // when its pool has nothing available)
+      const fresh = await drawWave(
+        nextMonster.subjects.length > 0
+          ? nextMonster.subjects
+          : (battleDoc.battleSubjects ?? battleDoc.subject),
+        user.id,
+        battleDoc.tier,
+        battleDoc.mode as BattleModeId,
+        battleDoc.wave,
+        allIds.slice(0, cursor),
+      );
+      if (fresh.length > 0) {
+        allIds = [...allIds.slice(0, cursor), ...fresh.map((q) => q.id)];
+      }
+    }
     if (cursor >= allIds.length) {
       // wave exhausted — INFINITE mode pulls a fresh, harder wave from the pool;
       // standard modes end the battle unless the pool had leftover questions
@@ -192,6 +231,7 @@ export async function POST(req: Request, { params }: Params) {
     cursor,
     status,
     questions: allIds,
+    questionDeadlineAt: Date.now() + 30_000,
   });
   await battleDoc.save();
   const updatedBattle = normalizeBattle(battleDoc.toObject());
@@ -222,9 +262,25 @@ export async function POST(req: Request, { params }: Params) {
     leveledUp,
     newLevel: xpAfter,
     unlockedTier,
+    questionDeadlineAt: updatedBattle.questionDeadlineAt,
     victoryBonus,
     waveCleared,
     waveNumber: updatedBattle.wave,
+    goldDrop,
+    gemDrop,
+    monsterDefeated: nextMonster !== null,
+    ...(nextMonster
+      ? {
+          enemyName: nextMonster.name,
+          enemySprite: nextMonster.emoji,
+          enemyImage: nextMonster.image ?? null,
+          enemyMaxHp: nextMonster.hp,
+          monsterIndex: nextMonsterIndex ?? currentMonsterIndex,
+          totalMonsters: monsters.length,
+        }
+      : monsters.length > 0
+        ? { monsterIndex: currentMonsterIndex, totalMonsters: monsters.length }
+        : {}),
   };
 
   return NextResponse.json(result);

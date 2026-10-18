@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { api } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { NormalizedUser } from "@/lib/models";
-import { ITEMS } from "@/lib/adventure-data";
+import { ITEMS, SLOT_ICON } from "@/lib/adventure-data";
 
 interface ShopViewProps {
   open: boolean;
@@ -55,10 +55,22 @@ export function ShopView({ open, onOpenChange, user, onRefresh }: ShopViewProps)
         ) : (
           consumables.map((item) => (
             <Card key={item.id} className="panel-frame">
-              <CardContent className="flex items-center justify-between p-3">
-                <div>
-                  <div className="font-semibold">{item.name}</div>
-                  <div className="text-xs text-muted-foreground">{item.description}</div>
+              <CardContent className="flex items-center justify-between gap-3 p-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  {item.image ? (
+                    <img src={item.image} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+                  ) : (
+                    <span
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xl"
+                      aria-hidden="true"
+                    >
+                      {SLOT_ICON[item.slot]}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <div className="font-semibold">{item.name}</div>
+                    <div className="text-xs text-muted-foreground">{item.description}</div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-[var(--xp)]">{item.price} 💰</span>

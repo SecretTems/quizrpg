@@ -29,6 +29,28 @@ interface BattleScreenProps {
 
 const QUESTION_TIME = 30;
 
+/**
+ * Per-question deadlines survive component unmounts — switching tabs during a
+ * battle and coming back must NOT hand the player a fresh 30 seconds. Keyed by
+ * `battleId:questionNumber:questionId`; cleared when a battle ends.
+ */
+const TIMER_DEADLINES = new Map<string, number>();
+
+function deadlineFor(key: string): number {
+  const existing = TIMER_DEADLINES.get(key);
+  if (existing !== undefined) return existing;
+  if (TIMER_DEADLINES.size > 400) TIMER_DEADLINES.clear(); // safety valve
+  const deadline = Date.now() + QUESTION_TIME * 1000;
+  TIMER_DEADLINES.set(key, deadline);
+  return deadline;
+}
+
+function clearDeadlinesFor(battleId: string) {
+  for (const key of [...TIMER_DEADLINES.keys()]) {
+    if (key.startsWith(`${battleId}:`)) TIMER_DEADLINES.delete(key);
+  }
+}
+
 interface Floaty {
   id: number;
   text: string;
@@ -36,16 +58,36 @@ interface Floaty {
   kind: "damage" | "crit" | "miss";
 }
 
-/** Self-contained countdown clock; remount per question via key to reset. */
-function QuestionTimer({ active, onTimeout }: { active: boolean; onTimeout: () => void }) {
-  const [timeLeft, setTimeLeft] = useState(QUESTION_TIME);
+/** Countdown clock that resumes from the stored deadline when remounted. */
+function QuestionTimer({
+  timerKey,
+  active,
+  onTimeout,
+  storedDeadline,
+}: {
+  timerKey: string;
+  active: boolean;
+  onTimeout: () => void;
+  /** epoch ms deadline persisted on the battle doc (survives tab/window switches) */
+  storedDeadline?: number;
+}) {
+  const [timeLeft, setTimeLeft] = useState(() => {
+    const deadline = storedDeadline ?? deadlineFor(timerKey);
+    return Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+  });
   const firedRef = useRef(false);
 
   useEffect(() => {
     if (!active) return;
-    const t = setInterval(() => setTimeLeft((s) => Math.max(0, s - 1)), 1000);
+    const t = setInterval(
+      () => {
+        const deadline = storedDeadline ?? deadlineFor(timerKey);
+        setTimeLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+      },
+      500,
+    );
     return () => clearInterval(t);
-  }, [active]);
+  }, [active, timerKey, storedDeadline]);
 
   useEffect(() => {
     if (active && timeLeft === 0 && !firedRef.current) {
@@ -108,6 +150,9 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
       pushFloaty("MISS", "player", "miss");
     }
     setRevealed(result);
+    if (result.monsterDefeated) {
+      pushFloaty("💥 DEFEATED!", "enemy", "crit");
+    }
     setBattle((b) => ({
       ...b,
       enemyHp: result.enemyHp,
@@ -116,6 +161,15 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
       xpEarned: result.xpEarned,
       streak: result.streak,
       status: result.status,
+      ...(result.enemyName ? { enemyName: result.enemyName } : {}),
+      ...(result.enemySprite ? { enemySprite: result.enemySprite } : {}),
+      ...(result.enemyImage !== undefined ? { enemyImage: result.enemyImage } : {}),
+      ...(result.enemyMaxHp !== undefined ? { enemyMaxHp: result.enemyMaxHp } : {}),
+      ...(result.monsterIndex !== undefined ? { monsterIndex: result.monsterIndex } : {}),
+      ...(result.totalMonsters !== undefined ? { totalMonsters: result.totalMonsters } : {}),
+      ...(result.questionDeadlineAt !== undefined
+        ? { questionDeadlineAt: result.questionDeadlineAt }
+        : {}),
     }));
 
     /* auto-advance after reveal */
@@ -123,6 +177,7 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
       setRevealed(null);
       setSelected(null);
       if (result.status !== "ONGOING") {
+        clearDeadlinesFor(battle.id);
         onBattleEnd(result);
       } else if (result.nextQuestion) {
         setBattle((b) => ({
@@ -164,6 +219,7 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
       /* battle may already be over — still leave the screen */
     }
     busyRef.current = false;
+    clearDeadlinesFor(battle.id);
     onBattleEnd(null);
   }
 
@@ -223,8 +279,12 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
       <motion.div animate={shake === "enemy" ? { x: [0, -8, 7, -4, 2, 0] } : { x: 0 }} transition={{ duration: 0.45 }}>
         <Card className="panel-frame relative overflow-hidden">
           <CardContent className="flex items-center gap-4 p-4 sm:p-5">
-            <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/50 text-5xl animate-floaty sm:h-24 sm:w-24 sm:text-6xl" aria-hidden="true">
-              {battle.enemySprite}
+            <div className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/50 text-5xl animate-floaty sm:h-24 sm:w-24 sm:text-6xl" aria-hidden="true">
+              {battle.enemyImage ? (
+                <img src={battle.enemyImage} alt="" className="h-full w-full object-cover" />
+              ) : (
+                battle.enemySprite
+              )}
               <AnimatePresence>
                 {floaties.filter((f) => f.side === "enemy").map((f) => (
                   <motion.span
@@ -246,7 +306,9 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-display text-xs sm:text-base">{battle.enemyName}</h3>
                 <span className="rounded-md border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                  Tier {battle.tier}
+                  {(battle.totalMonsters ?? 0) > 1
+                    ? `Monster ${(battle.monsterIndex ?? 0) + 1}/${battle.totalMonsters}`
+                    : `Tier ${battle.tier}`}
                 </span>
                 <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">
                   {battle.subject === "ALL" ? "Mixed subjects" : battle.subject}
@@ -278,8 +340,10 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
             </div>
             <QuestionTimer
               key={q.id}
+              timerKey={`${battle.id}:${battle.questionNumber}:${q.id}`}
               active={phase === "asking"}
               onTimeout={() => void submitAnswer(-1)}
+              storedDeadline={battle.questionDeadlineAt}
             />
           </div>
 
@@ -346,6 +410,12 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
                 </span>
                 {revealed.explanation}
                 {revealed.xpGained > 0 && <span className="ml-1 font-bold text-[var(--xp)]">+{revealed.xpGained} XP</span>}
+                {(revealed.goldDrop ?? 0) > 0 && (
+                  <span className="ml-2 font-bold text-amber-600 dark:text-amber-400">💰 +{revealed.goldDrop} gold</span>
+                )}
+                {(revealed.gemDrop ?? 0) > 0 && (
+                  <span className="ml-2 font-bold text-sky-600 dark:text-sky-400">💎 +{revealed.gemDrop} {revealed.gemDrop === 1 ? "gem" : "gems"}</span>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

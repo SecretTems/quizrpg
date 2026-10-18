@@ -9,6 +9,7 @@ import {
   normalizeCategory,
   normalizeQuestion,
   type NormalizedCategory,
+  type BattleMonster,
 } from "@/lib/models";
 import { getSessionUser } from "@/lib/auth";
 import { getTier, playerMaxHp, levelProgress, ENEMY_TIERS, BATTLE_MODES, getMode, isBattleModeId } from "@/lib/game";
@@ -56,7 +57,6 @@ export async function POST(req: Request) {
   const tierNum = Number(body.tier ?? 1);
   const mode = String(body.mode ?? "EASY").toUpperCase() as BattleModeId;
   const battleMode = getMode(mode);
-  const customOnly = Boolean(body.customOnly);
   const categoryId = body.categoryId ? String(body.categoryId) : null;
   const { level } = levelProgress(user.xp);
 
@@ -75,11 +75,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Category not found." }, { status: 404 });
     }
     category = normalizeCategory(catDoc);
-    // players may fight OFFICIAL categories or their own unapproved CUSTOM ones;
-    // PENDING/REJECTED categories (including other players') are not playable
+    // everyone may fight official categories; creators may also fight their own
+    // private (CUSTOM) or pending ones — never anyone else's unapproved content
     const playable =
-      category.status === "OFFICIAL" ||
-      (category.status === "CUSTOM" && category.ownerId === user.id);
+      category.status === "OFFICIAL" || category.ownerId === user.id;
     if (!playable) {
       return NextResponse.json(
         { error: "This category is not available to play." },
@@ -87,6 +86,31 @@ export async function POST(req: Request) {
       );
     }
   }
+
+  // --- build the enemy lineup: a category's monster team, fought in order ---
+  const categoryMonsters: BattleMonster[] = category
+    ? category.monsters && category.monsters.length > 0
+      ? category.monsters
+      : [
+          {
+            // legacy categories have no lineup — fall back to their single enemy
+            name: category.enemy.name,
+            emoji: category.enemy.emoji,
+            hp: category.enemy.baseHp,
+            atkMin: category.enemy.atkMin,
+            atkMax: category.enemy.atkMax,
+            subjects: category.subjects,
+          },
+        ]
+    : [];
+  const firstMonster = categoryMonsters[0];
+  // the first monster decides which questions open the fight
+  const categorySubjects =
+    firstMonster && firstMonster.subjects.length > 0
+      ? firstMonster.subjects
+      : category
+        ? category.subjects
+        : [];
 
   const tier = getTier(category ? category.enemy.tier : tierNum);
 
@@ -108,15 +132,14 @@ export async function POST(req: Request) {
     );
   }
 
-  // category battles draw only from the category's own subject list
+  // category battles draw from the first monster's own subject list
   const questions = await drawWave(
-    category ? category.subjects : subject,
+    category ? categorySubjects : subject,
     user.id,
     tier.tier,
     battleMode.id,
     1,
     [],
-    customOnly,
   );
   if (questions.length === 0) {
     return NextResponse.json(
@@ -125,7 +148,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const enemyMaxHp = category ? category.enemy.baseHp : tier.maxHp;
+  const enemyMaxHp = category ? firstMonster.hp : tier.maxHp;
   const created = await Battle.create({
     userId: user.id,
     subject: category ? category.subjects.join(", ") || "ALL" : subject,
@@ -134,11 +157,14 @@ export async function POST(req: Request) {
     ...(category
       ? {
           categoryId: category.id,
-          enemyName: category.enemy.name,
-          enemySprite: category.enemy.emoji,
-          enemyAtkMin: category.enemy.atkMin,
-          enemyAtkMax: category.enemy.atkMax,
-          battleSubjects: category.subjects,
+          enemyName: firstMonster.name,
+          enemySprite: firstMonster.emoji,
+          enemyImage: firstMonster.image ?? "",
+          enemyAtkMin: firstMonster.atkMin,
+          enemyAtkMax: firstMonster.atkMax,
+          battleSubjects: categorySubjects.length > 0 ? categorySubjects : category.subjects,
+          monsters: categoryMonsters,
+          monsterIndex: 0,
         }
       : { enemyName: tier.name }),
     enemyMaxHp,
@@ -146,6 +172,7 @@ export async function POST(req: Request) {
     playerMaxHp: playerMaxHp(level),
     playerHp: playerMaxHp(level),
     questions: questions.map((q) => q.id),
+    questionDeadlineAt: Date.now() + 30_000,
   });
 
   return NextResponse.json(

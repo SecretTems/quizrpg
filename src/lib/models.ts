@@ -27,6 +27,8 @@ export interface IEquipmentPiece {
 export interface IUser extends Document {
   username: string;
   displayName: string;
+  /** custom profile picture (data URL) — empty falls back to the default emoji */
+  avatar: string;
   passwordHash: string;
   role: "ADMIN" | "SUPER_ADMIN" | "PLAYER";
   xp: number;
@@ -59,6 +61,7 @@ const UserSchema = new Schema<IUser>(
       match: /^[a-zA-Z0-9_]+$/,
     },
     displayName: { type: String, default: "", maxlength: 30 },
+    avatar: { type: String, default: "", maxlength: 400_000 },
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ["ADMIN", "SUPER_ADMIN", "PLAYER"], default: "PLAYER" },
     xp: { type: Number, default: 0, min: 0 },
@@ -123,6 +126,18 @@ QuestionSchema.index({ ownerId: 1 });
 
 /* ---------- Battle ---------- */
 
+/** One monster in a category's battle lineup (snapshot copy stored on battles). */
+export interface BattleMonster {
+  name: string;
+  emoji: string;
+  /** custom monster art (data URL) — empty falls back to the emoji */
+  image?: string;
+  hp: number;
+  atkMin: number;
+  atkMax: number;
+  subjects: string[];
+}
+
 export interface IBattle extends Document {
   userId: string;
   subject: string;
@@ -138,6 +153,12 @@ export interface IBattle extends Document {
   enemyAtkMax?: number;
   /** subject list for category battles (undefined = single subject / ALL) */
   battleSubjects?: string[];
+  /** snapshot of the category's monster lineup (empty/undefined = classic single enemy) */
+  monsters?: BattleMonster[];
+  /** index of the monster currently being fought in `monsters` */
+  monsterIndex?: number;
+  /** custom image (data URL) of the monster currently being fought */
+  enemyImage?: string;
   enemyName: string;
   enemyMaxHp: number;
   enemyHp: number;
@@ -147,12 +168,14 @@ export interface IBattle extends Document {
   bestStreak: number;
   score: number;
   xpEarned: number;
-  /** question ids for this battle, in order; cursor points at the active one */
-  questions: string[];
-  cursor: number;
-  status: "ONGOING" | "WON" | "LOST" | "FLED";
-  createdAt: Date;
-  updatedAt: Date;
+    /** question ids for this battle, in order; cursor points at the active one */
+    questions: string[];
+    cursor: number;
+    status: "ONGOING" | "WON" | "LOST" | "FLED";
+    /** epoch ms deadline for the current question (survives tab/window switches) */
+    questionDeadlineAt?: number;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 const BattleSchema = new Schema<IBattle>(
@@ -171,6 +194,25 @@ const BattleSchema = new Schema<IBattle>(
     enemyAtkMax: { type: Number },
     /** subject list for category battles (undefined = single subject / ALL) */
     battleSubjects: { type: [String] },
+    monsters: {
+      type: [
+        new Schema(
+          {
+            name: { type: String, required: true, maxlength: 40 },
+            emoji: { type: String, default: "👾", maxlength: 8 },
+            image: { type: String, default: "", maxlength: 400_000 },
+            hp: { type: Number, required: true, min: 10 },
+            atkMin: { type: Number, required: true, min: 1 },
+            atkMax: { type: Number, required: true, min: 1 },
+            subjects: { type: [String], default: [] },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
+    monsterIndex: { type: Number, default: 0, min: 0 },
+    enemyImage: { type: String, default: "" },
     /** display name of the enemy fought */
     enemyName: { type: String, required: true },
     enemyMaxHp: { type: Number, required: true },
@@ -184,12 +226,26 @@ const BattleSchema = new Schema<IBattle>(
     questions: { type: [String], default: [] },
     cursor: { type: Number, default: 0 },
     status: { type: String, enum: ["ONGOING", "WON", "LOST", "FLED"], default: "ONGOING" },
+    /** epoch ms deadline for the current question (survives tab/window switches) */
+    questionDeadlineAt: { type: Number },
   },
   { timestamps: true },
 );
 BattleSchema.index({ userId: 1, status: 1 });
 
 /* ---------- Category (Adventure) ---------- */
+
+export interface IMonster {
+  name: string;
+  emoji: string;
+  /** custom monster art (data URL) — empty falls back to the emoji */
+  image?: string;
+  hp: number;
+  atkMin: number;
+  atkMax: number;
+  /** which subjects' question pools this monster draws from */
+  subjects: string[];
+}
 
 export interface ICategory extends Document {
   /** display name, e.g. "Mathematics" */
@@ -200,8 +256,12 @@ export interface ICategory extends Document {
   subjects: string[];
   /** which difficulties are playable inside this category */
   difficulties: ("EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER")[];
-  /** the monster guarding this category */
+  /** custom category art (data URL) — empty falls back to the first monster's emoji */
+  icon?: string;
+  /** the legacy single monster guarding this category (kept for old data) */
   enemy: { name: string; emoji: string; tier: number; baseHp: number; atkMin: number; atkMax: number };
+  /** ordered monster lineup fought one after another in a category battle */
+  monsters: IMonster[];
   /** OFFICIAL = admin-created, playable by everyone; CUSTOM = player's own */
   isOfficial: boolean;
   ownerId: string | null;
@@ -211,12 +271,26 @@ export interface ICategory extends Document {
   updatedAt: Date;
 }
 
+const MonsterSchema = new Schema<IMonster>(
+  {
+    name: { type: String, required: true, maxlength: 40 },
+    emoji: { type: String, default: "👾", maxlength: 8 },
+    image: { type: String, default: "", maxlength: 400_000 },
+    hp: { type: Number, required: true, min: 10 },
+    atkMin: { type: Number, required: true, min: 1 },
+    atkMax: { type: Number, required: true, min: 1 },
+    subjects: { type: [String], default: [] },
+  },
+  { _id: false },
+);
+
 const CategorySchema = new Schema<ICategory>(
   {
     name: { type: String, required: true, maxlength: 40 },
     description: { type: String, default: "", maxlength: 200 },
     subjects: { type: [String], required: true },
     difficulties: { type: [String], required: true },
+    icon: { type: String, default: "", maxlength: 400_000 },
     enemy: {
       name: { type: String, required: true, maxlength: 40 },
       emoji: { type: String, default: "👾", maxlength: 8 },
@@ -225,6 +299,7 @@ const CategorySchema = new Schema<ICategory>(
       atkMin: { type: Number, required: true, min: 1 },
       atkMax: { type: Number, required: true, min: 1 },
     },
+    monsters: { type: [MonsterSchema], default: [] },
     isOfficial: { type: Boolean, default: false },
     ownerId: { type: String, default: null },
     status: { type: String, enum: ["OFFICIAL", "CUSTOM", "PENDING", "REJECTED"], default: "CUSTOM" },
@@ -288,6 +363,7 @@ export interface NormalizedUser {
   id: string;
   username: string;
   displayName: string;
+  avatar: string;
   role: string;
   xp: number;
   battlesWon: number;
@@ -331,6 +407,9 @@ export interface NormalizedBattle {
   enemyAtkMin?: number;
   enemyAtkMax?: number;
   battleSubjects?: string[];
+  monsters?: BattleMonster[];
+  monsterIndex?: number;
+  enemyImage?: string;
   enemyName: string;
   enemyMaxHp: number;
   enemyHp: number;
@@ -343,6 +422,8 @@ export interface NormalizedBattle {
   questions: string[];
   cursor: number;
   status: "ONGOING" | "WON" | "LOST" | "FLED";
+  /** epoch ms deadline for the current question (survives tab/window switches) */
+  questionDeadlineAt?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -352,8 +433,10 @@ export interface NormalizedCategory {
   name: string;
   description: string;
   subjects: string[];
-  difficulties: ("EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER")[];
+  difficulties: ( "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER")[];
+  icon: string;
   enemy: { name: string; emoji: string; tier: number; baseHp: number; atkMin: number; atkMax: number };
+  monsters: IMonster[];
   isOfficial: boolean;
   ownerId: string | null;
   status: "OFFICIAL" | "CUSTOM" | "PENDING" | "REJECTED";

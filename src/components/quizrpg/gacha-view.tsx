@@ -24,7 +24,11 @@ const CATS: { id: "WEAPON" | "ARMOR" | "ACCESSORY" | "CONSUMABLE"; label: string
 ];
 
 export function GachaView({ open, onOpenChange, user, onRefresh }: GachaViewProps) {
-  const [pullResult, setPullResult] = useState<{ rarity: string; item: any; cost: number } | null>(null);
+  const [pullResult, setPullResult] = useState<{
+    rarity: string;
+    item: { id: string; name: string; image?: string; slot?: string } | null;
+    cost: number;
+  } | null>(null);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   const pull = async () => {
@@ -77,7 +81,12 @@ export function GachaView({ open, onOpenChange, user, onRefresh }: GachaViewProp
         <Card className="mt-4 panel-frame">
           <CardContent className="p-3 text-center">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">{pullResult.rarity}</div>
-            <div className="font-bold">{pullResult.item ? (pullResult.item as any).name : "Nothing"}</div>
+            <div className="mt-1 flex items-center justify-center gap-2">
+              {pullResult.item?.image && (
+                <img src={pullResult.item.image} alt="" className="h-10 w-10 rounded-lg object-cover" />
+              )}
+              <div className="font-bold">{pullResult.item ? pullResult.item.name : "Nothing"}</div>
+            </div>
           </CardContent>
         </Card>
       )}

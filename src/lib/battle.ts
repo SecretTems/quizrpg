@@ -39,20 +39,15 @@ export async function drawWave(
   mode: BattleModeId,
   wave = 1,
   excludeIds: string[] = [],
-  customOnly = false,
 ): Promise<BattleQuestion[]> {
   await connectDB();
   // Question limits per difficulty are removed: draw every available question
   // of the selected difficulty instead of a fixed per-mode cap.
   const difficulty = pickDifficulty(mode, wave);
 
-  // official bank + the player's own custom questions (user-made questions are
-  // only visible to their creator unless made official)
-  const poolDocs = await Question.find(
-    customOnly
-      ? { status: "CUSTOM", ownerId: userId }
-      : { status: "OFFICIAL" },
-  ).lean();
+  // battles always draw from the OFFICIAL bank (custom questions are
+  // practice-only and never enter the battle pool)
+  const poolDocs = await Question.find({ status: "OFFICIAL" }).lean();
   if (poolDocs.length === 0) return [];
   const pool = poolDocs.map(normalizeQuestion);
 
@@ -67,7 +62,7 @@ export async function drawWave(
   let subjectPool =
     subjectList.length === 0 ? pool : pool.filter((q) => subjectList.includes(q.subject));
   const wanted = subjectPool.filter((q) => q.difficulty === difficulty).length;
-  if (subjectPool.length < wanted && !customOnly) {
+  if (subjectPool.length < wanted) {
     // not enough in this subject — mix in official questions from other subjects
     subjectPool = [
       ...subjectPool,
@@ -122,6 +117,9 @@ export function toBattleState(
     wave?: number;
     enemyName: string;
     enemySprite?: string;
+    enemyImage?: string;
+    monsters?: unknown[];
+    monsterIndex?: number;
     enemyMaxHp: number;
     enemyHp: number;
     playerMaxHp: number;
@@ -133,6 +131,8 @@ export function toBattleState(
     status: string;
     questions: string[];
     cursor: number;
+    /** epoch ms deadline for the current question (survives tab/window switches) */
+    questionDeadlineAt?: number;
   },
   currentQuestion: BattleQuestion | null,
 ): BattleStateDTO {
@@ -148,6 +148,9 @@ export function toBattleState(
     wave: battle.wave ?? 1,
     enemyName: battle.enemyName,
     enemySprite: battle.enemySprite ?? tier.sprite,
+    enemyImage: battle.enemyImage || null,
+    monsterIndex: battle.monsterIndex ?? 0,
+    totalMonsters: Array.isArray(battle.monsters) ? battle.monsters.length : 0,
     enemyMaxHp: battle.enemyMaxHp,
     enemyHp: battle.enemyHp,
     playerMaxHp: battle.playerMaxHp,
@@ -161,6 +164,7 @@ export function toBattleState(
     questionNumber: Math.min(battle.cursor + 1, ids.length),
     totalSeen: ids.length,
     waveNumber: battle.wave ?? 1,
+    questionDeadlineAt: battle.questionDeadlineAt ?? undefined,
   };
 }
 

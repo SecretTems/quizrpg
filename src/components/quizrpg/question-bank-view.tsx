@@ -31,8 +31,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { api, useAuth } from "@/lib/store";
 import { DifficultyBadge, StatusBadge, subjectIcon } from "@/components/quizrpg/bits";
+import { CategoryMaker } from "@/components/quizrpg/category-maker";
+import { MonsterMaker } from "@/components/quizrpg/monster-maker";
 import { cn } from "@/lib/utils";
 import type { QuestionDTO } from "@/lib/types";
+import type { NormalizedCategory } from "@/lib/models";
 import type { Difficulty } from "@/lib/game";
 
 const DIFFICULTIES: Difficulty[] = ["EASY", "MEDIUM", "HARD", "EXPERT", "MASTER"];
@@ -56,6 +59,7 @@ const EMPTY_FORM: QuestionForm = {
 };
 
 type Scope = "official" | "mine" | "pending";
+type Maker = "questions" | "categories" | "monsters";
 
 export function QuestionBankView() {
   const user = useAuth((s) => s.user);
@@ -69,6 +73,13 @@ export function QuestionBankView() {
   const [difficulty, setDifficulty] = useState<string>("ALL");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+
+  /* maker switcher + category/monster question filters */
+  const [maker, setMaker] = useState<Maker>("questions");
+  const [categories, setCategories] = useState<NormalizedCategory[]>([]);
+  const [filterCategoryId, setFilterCategoryId] = useState("ALL");
+  const [filterMonsterIndex, setFilterMonsterIndex] = useState("ALL");
+  const [monsterMakerCatId, setMonsterMakerCatId] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<QuestionDTO | null>(null);
@@ -86,16 +97,30 @@ export function QuestionBankView() {
 
   const load = useCallback(async () => {
     try {
-      const [q, s] = await Promise.all([
+      const [q, s, c] = await Promise.all([
         api<{ questions: QuestionDTO[] }>(`/api/questions?${query}`),
         api<{ subjects: string[] }>("/api/subjects"),
+        api<{ categories: NormalizedCategory[] }>("/api/categories").catch(() => ({
+          categories: [] as NormalizedCategory[],
+        })),
       ]);
       setQuestions(q.questions);
       setAllSubjects(s.subjects);
+      setCategories(c.categories);
     } catch (err) {
       toast({ title: "Failed to load questions", description: err instanceof Error ? err.message : "", variant: "destructive" });
     }
   }, [query]);
+
+  /** Refresh just the category list (used by the makers after a mutation). */
+  const reloadCategories = useCallback(async () => {
+    try {
+      const c = await api<{ categories: NormalizedCategory[] }>("/api/categories");
+      setCategories(c.categories);
+    } catch {
+      /* the maker already toasted the error */
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,17 +227,74 @@ export function QuestionBankView() {
   const canEdit = (q: QuestionDTO) => isStaff || q.ownerId === user?.id;
   const canModerate = (q: QuestionDTO) => isStaff && q.status === "PENDING";
 
+  /* category / monster filters apply on top of the server-side query */
+  const selectedFilterCat = categories.find((c) => c.id === filterCategoryId) ?? null;
+  const filterMonsters = selectedFilterCat?.monsters ?? [];
+  const visibleQuestions = questions.filter((q) => {
+    if (selectedFilterCat && !selectedFilterCat.subjects.includes(q.subject)) return false;
+    if (filterMonsterIndex !== "ALL") {
+      const m = filterMonsters[Number(filterMonsterIndex)];
+      if (m && m.subjects.length > 0 && !m.subjects.includes(q.subject)) return false;
+    }
+    return true;
+  });
+
   const scopeTabs: { id: Scope; label: string; icon: React.ReactNode }[] = [
     { id: "mine", label: "My Custom Bank", icon: <UserRound className="h-3.5 w-3.5" /> },
     { id: "official", label: "Official Bank", icon: <Globe2 className="h-3.5 w-3.5" /> },
   ];
   if (isStaff) scopeTabs.push({ id: "pending", label: "Approvals", icon: <Check className="h-3.5 w-3.5" /> });
 
+  const MAKERS: { id: Maker; emoji: string; label: string; desc: string }[] = [
+    { id: "categories", emoji: "📂", label: "Category Maker", desc: "Create categories & manage monster order." },
+    { id: "monsters", emoji: "👾", label: "Monster Maker", desc: "Design monsters, stats & question pools." },
+    { id: "questions", emoji: "❓", label: "Question Maker", desc: "Write, edit and organize questions." },
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-lg">📚 Question Bank</h2>
+          <h2 className="font-display text-lg">📚 Bank</h2>
+          <p className="text-sm text-muted-foreground">
+            Build categories, design the monsters that guard them, and manage your questions.
+          </p>
+        </div>
+      </div>
+
+      {/* maker switcher */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        {MAKERS.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => setMaker(m.id)}
+            aria-pressed={maker === m.id}
+            className={cn(
+              "flex items-center gap-3 rounded-xl border-2 p-4 text-left transition-all",
+              maker === m.id
+                ? "border-primary bg-primary/10 shadow-[0_0_18px_-6px_var(--primary)]"
+                : "border-border hover:border-primary/50 hover:bg-accent",
+            )}
+          >
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xl"
+              aria-hidden="true"
+            >
+              {m.emoji}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-bold">{m.label}</span>
+              <span className="block text-xs text-muted-foreground">{m.desc}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {maker === "questions" && (
+      <>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="font-display text-base">❓ Question Maker</h3>
           <p className="text-sm text-muted-foreground">
             {scope === "official"
               ? "The approved bank every player draws from — view-only unless you're staff."
@@ -267,6 +349,36 @@ export function QuestionBankView() {
               ))}
             </SelectContent>
           </Select>
+          <Select
+            value={filterCategoryId}
+            onValueChange={(v) => {
+              setFilterCategoryId(v);
+              setFilterMonsterIndex("ALL");
+            }}
+          >
+            <SelectTrigger className="w-44" aria-label="Filter by category">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All categories</SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterMonsterIndex} onValueChange={setFilterMonsterIndex} disabled={!selectedFilterCat}>
+            <SelectTrigger className="w-40" aria-label="Filter by monster">
+              <SelectValue placeholder="Monster" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All monsters</SelectItem>
+              {filterMonsters.map((m, i) => (
+                <SelectItem key={`${m.name}-${i}`} value={String(i)}>
+                  {m.emoji} {m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="relative min-w-44 flex-1">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
@@ -285,17 +397,19 @@ export function QuestionBankView() {
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : questions.length === 0 ? (
+      ) : visibleQuestions.length === 0 ? (
         <Card className="panel-frame">
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <LibraryBig className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
             <p className="font-semibold">Nothing here yet</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              {scope === "official"
-                ? "The official bank has no matching questions yet."
-                : scope === "pending"
-                  ? "No submissions waiting for review."
-                  : "Your custom bank is empty. Create questions — they stay private to you until approved."}
+              {questions.length > 0 && visibleQuestions.length === 0
+                ? "No questions match the selected category or monster filter."
+                : scope === "official"
+                  ? "The official bank has no matching questions yet."
+                  : scope === "pending"
+                    ? "No submissions waiting for review."
+                    : "Your custom bank is empty. Create questions — they stay private to you until approved."}
             </p>
             {scope !== "official" && (
               <Button variant="outline" className="gap-1.5" onClick={openCreate}>
@@ -306,7 +420,7 @@ export function QuestionBankView() {
         </Card>
       ) : (
         <div className="max-h-[calc(100vh-20rem)] space-y-2 overflow-y-auto pr-1">
-          {questions.map((q, idx) => (
+          {visibleQuestions.map((q, idx) => (
             <motion.div
               key={q.id}
               initial={{ opacity: 0, y: 6 }}
@@ -534,6 +648,26 @@ export function QuestionBankView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </>
+      )}
+
+      {maker === "categories" && (
+        <CategoryMaker
+          categories={categories}
+          onReload={() => void reloadCategories()}
+          onManageMonsters={(id) => {
+            setMonsterMakerCatId(id);
+            setMaker("monsters");
+          }}
+        />
+      )}
+      {maker === "monsters" && (
+        <MonsterMaker
+          categories={categories}
+          initialCategoryId={monsterMakerCatId}
+          onReload={() => void reloadCategories()}
+        />
+      )}
     </div>
   );
 }

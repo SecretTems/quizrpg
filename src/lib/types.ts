@@ -6,6 +6,8 @@ export interface SafeUser {
   id: string;
   username: string;
   displayName: string;
+  /** custom profile picture (data URL) when set */
+  avatar?: string;
   role: string;
   xp: number;
   battlesWon: number;
@@ -42,6 +44,8 @@ export interface BattleStateDTO {
   wave: number;
   enemyName: string;
   enemySprite: string;
+  /** custom monster image (data URL) when the monster has one */
+  enemyImage?: string | null;
   enemyMaxHp: number;
   enemyHp: number;
   playerMaxHp: number;
@@ -62,6 +66,12 @@ export interface BattleStateDTO {
   questionNumber: number;
   totalSeen: number;
   waveNumber: number;
+  /** 0-based index of the current monster in a category battle's lineup */
+  monsterIndex?: number;
+  /** total monsters in a category lineup (undefined/0 = classic single enemy) */
+  totalMonsters?: number;
+  /** epoch ms deadline for the current question (survives tab/window switches) */
+  questionDeadlineAt?: number;
 }
 
 export interface AnswerResultDTO {
@@ -87,6 +97,21 @@ export interface AnswerResultDTO {
   victoryBonus: { xp: number; score: number } | null;
   waveCleared: boolean;
   waveNumber: number;
+  /** gold earned from the victory loot drop (0 otherwise) */
+  goldDrop: number;
+  /** gems earned from the victory loot drop (0 otherwise) */
+  gemDrop: number;
+  /** true when a category monster fell and the next one in the lineup stepped in */
+  monsterDefeated: boolean;
+  /** updated enemy info — present when the lineup advanced mid-battle */
+  enemyName?: string;
+  enemySprite?: string;
+  enemyImage?: string | null;
+  enemyMaxHp?: number;
+  monsterIndex?: number;
+  totalMonsters?: number;
+  /** epoch ms deadline for the next question (carried over from the server) */
+  questionDeadlineAt?: number;
 }
 
 export interface LeaderboardEntry {

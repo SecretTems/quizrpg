@@ -118,9 +118,13 @@ scripts/
 
 | Collection | Purpose |
 | ---------- | ------- |
-| `users` | account, role, xp, battlesWon/Lost, bestScore, bestStreak |
+| `users` | account, role, avatar, xp, battlesWon/Lost, bestScore, bestStreak, gold, gems, equipment, backpack |
 | `questions` | subject, difficulty, 4 options, correctIndex, explanation, ownerId (null = global bank) |
-| `battles` | full save/resume state: HP, streak, score, xpEarned, question ids, cursor, status |
+| `battles` | full save/resume state: HP, streak, score, xpEarned, question ids, cursor, monster lineup, status |
+| `categories` | Adventure categories: name, icon, subjects, ordered monster lineup, owner + approval status (CUSTOM → PENDING → OFFICIAL) |
+
+> Equipment & consumable **items** are not a collection — they're static data in `src/lib/adventure-data.ts`
+> (see *Adding item images* below).
 
 ## Scripts
 
@@ -147,3 +151,31 @@ This app has **server-side logic** (auth cookies, server-authoritative combat, M
 - **Tuning combat**: edit constants in `src/lib/game.ts` (damage, crit chance, tiers, XP curve).
 - **Adding questions**: use the in-game Question Bank (admins can add to the global bank) or extend `SEED_QUESTIONS` in `scripts/seed.mjs` and re-run `npm run seed`.
 - **Theming**: palettes live in `src/app/globals.css` (`.parchment` / `.dungeon` CSS variable sets).
+
+### Adding item images
+
+Item artwork is data-driven: every entry in `ITEMS` (`src/lib/adventure-data.ts`) accepts an optional `image`
+field. To give an item art:
+
+1. **Export a square PNG** — 128×128 px is the sweet spot (256×256 also works), transparency allowed, keep the
+   file under ~100 KB.
+2. **Drop the file into** `public/images/items/`. Name it after the item id so it's easy to match, e.g.
+   `w-iron-sword.png`, `a-chain-mail.png`, `c-minor-potion.png`.
+3. **Reference it** on that item's entry in `ITEMS`:
+
+   ```ts
+   { id: "w-iron-sword", name: "Iron Sword", slot: "WEAPON", atk: 4, def: 0,
+     rarity: "COMMON", price: 120, description: "Reliable soldier steel.",
+     unique: false, image: "/images/items/w-iron-sword.png" }
+   ```
+
+4. Restart the dev server — the **Shop**, **Gacha**, and **Equipment** screens render `image` automatically and
+   fall back to the slot emoji (⚔️ 🛡️ 💍 🧪) when it's missing, so nothing breaks if only some items have art.
+
+Tips:
+
+- Item id prefixes: `w-` weapons, `a-` armor, `ac-` accessories, `c-` consumables.
+- Keep filenames lowercase kebab-case, equal to the item id.
+- **Player-uploaded images** (profile picture, category icons, monster icons) work differently: they're picked
+  in-game (Profile / Bank), downscaled to 128 px in the browser, validated by the unified `POST /api/upload`
+  route (max ~200 KB, PNG/JPEG/WebP/GIF), and stored as small data URLs so the database stays light.
