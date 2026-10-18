@@ -10,10 +10,18 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-export function HowToPlayDialog({ children }: { children: ReactNode }) {
+export function HowToPlayDialog({
+  children,
+  open = false,
+  onOpenChange,
+}: {
+  children?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   return (
-    <Dialog>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {children ? <DialogTrigger asChild>{children}</DialogTrigger> : null}
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="font-display">📜 How to Play</DialogTitle>

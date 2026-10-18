@@ -18,8 +18,12 @@ import { api, useAuth } from "@/lib/store";
 import { ENEMY_TIERS, BATTLE_MODES, levelProgress, getMode, type BattleModeId } from "@/lib/game";
 import { subjectIcon } from "@/components/quizrpg/bits";
 import { BattleScreen } from "@/components/quizrpg/battle-screen";
+import { EquipmentView } from "@/components/quizrpg/equipment-view";
+import { ShopView } from "@/components/quizrpg/shop-view";
+import { GachaView } from "@/components/quizrpg/gacha-view";
 import { cn } from "@/lib/utils";
 import type { BattleStateDTO, AnswerResultDTO } from "@/lib/types";
+import type { NormalizedCategory, NormalizedUser } from "@/lib/models";
 
 interface ArenaViewProps {
   onStatsChanged: () => void;
@@ -35,12 +39,22 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   const [customOnly, setCustomOnly] = useState(false);
   const [tier, setTier] = useState<number>(1);
   const [mode, setMode] = useState<BattleModeId>("EASY");
+  const [categories, setCategories] = useState<NormalizedCategory[]>([]);
+  /** selected DB Adventure category opponent — overrides the static tier roster */
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleStateDTO | null>(null);
   const [resumable, setResumable] = useState<BattleStateDTO | null>(null);
   const [starting, setStarting] = useState(false);
   const [result, setResult] = useState<AnswerResultDTO | null>(null);
   const [showResult, setShowResult] = useState(false);
-  const [lastMeta, setLastMeta] = useState<{ subject: string; tier: number; mode: BattleModeId; customOnly: boolean; enemyName: string } | null>(null);
+  const [lastMeta, setLastMeta] = useState<{ subject: string; tier: number; mode: BattleModeId; customOnly: boolean; categoryId: string | null; enemyName: string } | null>(null);
+
+  /* Play modal + side feature dialogs */
+  const [showPlayModal, setShowPlayModal] = useState(false);
+  const [showEquipment, setShowEquipment] = useState(false);
+  const [showShop, setShowShop] = useState(false);
+  const [showGacha, setShowGacha] = useState(false);
+  const [profile, setProfile] = useState<NormalizedUser | null>(null);
 
   const level = user ? levelProgress(user.xp).level : 1;
 
@@ -48,13 +62,18 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
     let cancelled = false;
     (async () => {
       try {
-        const [d, b] = await Promise.all([
+        const [d, b, p, c] = await Promise.all([
           api<{ subjects: string[] }>("/api/subjects"),
           api<{ battle: BattleStateDTO | null }>("/api/battle"),
+          api<{ user: NormalizedUser }>("/api/auth/me"),
+          api<{ categories: NormalizedCategory[] }>("/api/categories").catch(() => ({ categories: [] as NormalizedCategory[] })),
         ]);
         if (cancelled) return;
         setSubjects(d.subjects);
         setResumable(b.battle);
+        setProfile(p.user);
+        // only playable categories: official ones and the player's own approved customs
+        setCategories(c.categories.filter((cat) => cat.status === "OFFICIAL" || cat.status === "CUSTOM"));
       } catch {
         if (!cancelled) {
           setSubjects([]);
@@ -68,16 +87,17 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   }, []);
 
   const startBattle = useCallback(
-    async (subj: string, t: number, m: BattleModeId, useCustomOnly = customOnly) => {
+    async (subj: string, t: number, m: BattleModeId, useCustomOnly = customOnly, catId: string | null = null) => {
       setStarting(true);
       try {
         const data = await api<{ battle: BattleStateDTO }>("/api/battle", {
           method: "POST",
-          body: JSON.stringify({ subject: subj, tier: t, mode: m, customOnly: useCustomOnly }),
+          body: JSON.stringify({ subject: subj, tier: t, mode: m, customOnly: useCustomOnly, categoryId: catId ?? undefined }),
         });
         setBattle(data.battle);
         setResumable(null);
-        setLastMeta({ subject: subj, tier: t, mode: m, customOnly: useCustomOnly, enemyName: data.battle.enemyName });
+        setShowPlayModal(false);
+        setLastMeta({ subject: subj, tier: t, mode: m, customOnly: useCustomOnly, categoryId: data.battle.categoryId, enemyName: data.battle.enemyName });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Could not start battle.";
         if (message.toLowerCase().includes("ongoing")) {
@@ -87,7 +107,8 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
             if (d.battle) {
               setBattle(d.battle);
               setResumable(null);
-              setLastMeta({ subject: d.battle.subject, tier: d.battle.tier, mode: d.battle.mode, customOnly: false, enemyName: d.battle.enemyName });
+              setShowPlayModal(false);
+              setLastMeta({ subject: d.battle.subject, tier: d.battle.tier, mode: d.battle.mode, customOnly: false, categoryId: d.battle.categoryId, enemyName: d.battle.enemyName });
               return;
             }
           } catch { /* fall through */ }
@@ -170,13 +191,22 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
       )}
 
       <div>
-        <h2 className="font-display text-lg">⚔️ Battle Arena</h2>
+        <h2 className="font-display text-lg">⚔️ Adventure</h2>
         <p className="text-sm text-muted-foreground">
           Pick a subject and an opponent. Every correct answer strikes the enemy — wrong answers let it strike you.
         </p>
       </div>
 
       {/* step 1 — subject */}
+      <Dialog open={showPlayModal} onOpenChange={setShowPlayModal}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Play className="h-5 w-5" /> Start an Adventure
+            </DialogTitle>
+            <DialogDescription>Choose your subject, difficulty, and opponent — then dive in.</DialogDescription>
+          </DialogHeader>
+
       <Card className="panel-frame">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">1 · Choose your study subject</CardTitle>
@@ -262,7 +292,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">3 · Choose your opponent</CardTitle>
           <CardDescription>
-            Opponents are grouped by category — grade level or subject focus. New tiers unlock as you level up.
+            Opponents are grouped by category — grade level or subject focus. Adventure Categories fight from their own subject pools; new tiers unlock as you level up.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -272,12 +302,15 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {ENEMY_TIERS.filter((t) => t.category === cat).map((t) => {
                   const locked = level < t.unlockLevel;
-                  const active = tier === t.tier;
+                  const active = categoryId === null && tier === t.tier;
                   return (
                     <button
                       key={t.tier}
                       disabled={locked}
-                      onClick={() => setTier(t.tier)}
+                      onClick={() => {
+                        setTier(t.tier);
+                        setCategoryId(null);
+                      }}
                       aria-pressed={active}
                       className={cn(
                         "relative rounded-xl border-2 p-4 text-left transition-all",
@@ -307,10 +340,48 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
               </div>
             </div>
           ))}
+
+          {/* DB Adventure categories — monsters defined by admin-approved categories */}
+          {categories.length > 0 && (
+            <div>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">🌍 Adventure Categories</p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {categories.map((c) => {
+                  const active = categoryId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setCategoryId(c.id)}
+                      aria-pressed={active}
+                      className={cn(
+                        "relative rounded-xl border-2 p-4 text-left transition-all",
+                        active
+                          ? "border-primary bg-primary/10 shadow-[0_0_18px_-6px_var(--primary)]"
+                          : "border-border hover:border-primary/50 hover:bg-accent",
+                      )}
+                    >
+                      <span className={cn("block text-4xl", active && "animate-floaty")} aria-hidden="true">
+                        {c.enemy.emoji}
+                      </span>
+                      <span className="mt-2 block font-display text-xs">{c.enemy.name}</span>
+                      <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">
+                        {c.description || `Guardian of ${c.name}`}
+                      </span>
+                      <span className="mt-1 block text-[11px] text-muted-foreground">📚 {c.subjects.join(" · ")}</span>
+                      <span className="mt-2 flex flex-wrap gap-1 text-[10px] font-bold">
+                        <span className="rounded bg-red-600/15 px-1.5 py-0.5 text-red-600 dark:text-red-400">HP {c.enemy.baseHp}</span>
+                        <span className="rounded bg-orange-600/15 px-1.5 py-0.5 text-orange-600 dark:text-orange-400">ATK {c.enemy.atkMin}–{c.enemy.atkMax}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      <div className="flex flex-col items-center gap-2">
+        {/* custom bank toggle + start */}
         <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-xs font-semibold">
           <input
             type="checkbox"
@@ -321,10 +392,32 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
           🧩 Custom bank only
           <span className="font-normal text-muted-foreground">(practice — no rewards)</span>
         </label>
-        <Button size="lg" className="gap-2 px-10" disabled={starting} onClick={() => void startBattle(subject, tier, mode)}>
-          {starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Swords className="h-5 w-5" />}
-          {starting ? "Entering…" : "Start Battle"}
+        <DialogFooter className="gap-2 sm:justify-between">
+          <Button variant="outline" onClick={() => setShowPlayModal(false)}>Cancel</Button>
+          <Button className="gap-2" disabled={starting} onClick={() => void startBattle(subject, tier, mode, customOnly, categoryId)}>
+            {starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />}
+            {starting ? "Entering…" : "Start Battle"}
+          </Button>
+        </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex flex-col items-center gap-2">
+        <Button size="lg" className="gap-2 px-16 py-3.5 text-lg font-bold shadow-lg" onClick={() => setShowPlayModal(true)}>
+          <Play className="h-5 w-5 mr-2" />
+          Play
         </Button>
+        <div className="flex gap-2 items-center">
+          <Button size="sm" title="Equipment" onClick={() => setShowEquipment(true)}>
+            Equipment
+          </Button>
+          <Button size="sm" title="Shop" onClick={() => setShowShop(true)}>
+            Shop
+          </Button>
+          <Button size="sm" title="Gacha" onClick={() => setShowGacha(true)}>
+            Gacha
+          </Button>
+        </div>
         <p className="text-xs text-muted-foreground">
           {lp.current}/{lp.needed} XP into level {lp.level} · {getMode(mode).questionCount} questions ({getMode(mode).label}) · 30s each
         </p>
@@ -384,13 +477,13 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
 
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button variant="outline" onClick={() => setShowResult(false)}>
-                  Back to Arena
+                  Back to Adventure
                 </Button>
                 <Button
                   className="gap-1.5"
                   onClick={() => {
                     setShowResult(false);
-                    void startBattle(lastMeta?.subject ?? subject, lastMeta?.tier ?? tier, lastMeta?.mode ?? mode, lastMeta?.customOnly ?? customOnly);
+                    void startBattle(lastMeta?.subject ?? subject, lastMeta?.tier ?? tier, lastMeta?.mode ?? mode, lastMeta?.customOnly ?? customOnly, lastMeta?.categoryId ?? null);
                   }}
                 >
                   <RotateCcw className="h-4 w-4" /> Battle Again
@@ -400,6 +493,25 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
           )}
         </DialogContent>
       </Dialog>
+
+      <EquipmentView
+        open={showEquipment}
+        onOpenChange={setShowEquipment}
+        user={profile}
+        onRefresh={() => void refreshUser()}
+      />
+      <ShopView
+        open={showShop}
+        onOpenChange={setShowShop}
+        user={profile}
+        onRefresh={() => void refreshUser()}
+      />
+      <GachaView
+        open={showGacha}
+        onOpenChange={setShowGacha}
+        user={profile}
+        onRefresh={() => void refreshUser()}
+      />
     </div>
   );
 }

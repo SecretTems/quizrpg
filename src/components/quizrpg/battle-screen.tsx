@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { StatBar, DifficultyBadge } from "@/components/quizrpg/bits";
+import { StatBar, DifficultyBadge, subjectIcon } from "@/components/quizrpg/bits";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/store";
 import type { BattleStateDTO, AnswerResultDTO } from "@/lib/types";
@@ -263,6 +263,9 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
         <CardContent className="space-y-4 p-4 sm:p-6">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
+              <span className="rounded-md border border-border bg-muted/60 px-2 py-0.5 text-xs font-semibold">
+                {subjectIcon(q.subject)} {q.subject}
+              </span>
               <DifficultyBadge difficulty={q.difficulty} />
               {q.status !== "OFFICIAL" && (
                 <span className="rounded-md border border-amber-600/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">

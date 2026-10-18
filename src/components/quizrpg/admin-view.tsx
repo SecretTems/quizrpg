@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, ShieldCheck, Trash2, UserCog, LibraryBig, Swords, Users, Search, Check, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { api, useAuth } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import type { NormalizedCategory } from "@/lib/models";
 
 interface AdminUser {
   id: string;
@@ -47,8 +48,23 @@ export function AdminView() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [section, setSection] = useState<"players" | "admins">("players");
+  const [section, setSection] = useState<"players" | "admins" | "categories">("players");
   const isSuper = me?.role === "SUPER_ADMIN";
+
+  const [categories, setCategories] = useState<NormalizedCategory[]>([]);
+  const [catLoading, setCatLoading] = useState(false);
+  const [catForm, setCatForm] = useState({
+    name: "",
+    description: "",
+    subjects: "English",
+    difficulties: "EASY,MEDIUM,HARD",
+    enemyName: "",
+    enemyEmoji: "👾",
+    enemyTier: 1,
+    enemyHp: 60,
+    enemyAtkMin: 6,
+    enemyAtkMax: 9,
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,6 +78,42 @@ export function AdminView() {
       setLoading(false);
     }
   }, [section, search]);
+
+  const loadCategories = useCallback(async () => {
+    setCatLoading(true);
+    try {
+      const d = await api<{ categories: NormalizedCategory[] }>("/api/categories");
+      setCategories(d.categories);
+    } catch (err) {
+      toast({ title: "Failed to load categories", description: err instanceof Error ? err.message : "", variant: "destructive" });
+    } finally {
+      setCatLoading(false);
+    }
+  }, []);
+
+  const approveCategory = async (id: string) => {
+    try {
+      await api(`/api/categories/${id}`, { method: "PUT", body: JSON.stringify({ status: "OFFICIAL" }) });
+      toast({ title: "Category approved", description: "It is now an official Adventure category." });
+      await loadCategories();
+    } catch (err) {
+      toast({ title: "Approve failed", description: err instanceof Error ? err.message : "", variant: "destructive" });
+    }
+  };
+
+  const deleteCategory = async (id: string) => {
+    try {
+      await api(`/api/categories/${id}`, { method: "DELETE" });
+      toast({ title: "Category deleted" });
+      await loadCategories();
+    } catch (err) {
+      toast({ title: "Delete failed", description: err instanceof Error ? err.message : "", variant: "destructive" });
+    }
+  };
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,6 +205,115 @@ export function AdminView() {
         ))}
       </div>
 
+      {section === "categories" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Categories</CardTitle>
+            <CardDescription>
+              Create and manage Adventure categories. Players create custom/pending categories; admins approve them to official.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input
+                value={catForm.name}
+                onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
+                placeholder="Category name"
+              />
+              <Input
+                value={catForm.description}
+                onChange={(e) => setCatForm({ ...catForm, description: e.target.value })}
+                placeholder="Description"
+              />
+              <Input
+                value={catForm.subjects}
+                onChange={(e) => setCatForm({ ...catForm, subjects: e.target.value })}
+                placeholder="Subjects (comma separated)"
+              />
+              <Input
+                value={catForm.enemyName}
+                onChange={(e) => setCatForm({ ...catForm, enemyName: e.target.value })}
+                placeholder="Enemy name"
+              />
+            </div>
+            <Button
+              disabled={catLoading}
+              onClick={async () => {
+                try {
+                  await api("/api/categories", {
+                    method: "POST",
+                    body: JSON.stringify({
+                      name: catForm.name,
+                      description: catForm.description,
+                      subjects: catForm.subjects.split(",").map((s) => s.trim()).filter(Boolean),
+                      difficulties: catForm.difficulties.split(",").map((s) => s.trim()).filter(Boolean),
+                      enemy: {
+                        name: catForm.enemyName || catForm.name + " Guardian",
+                        emoji: catForm.enemyEmoji || "👾",
+                        tier: catForm.enemyTier,
+                        baseHp: catForm.enemyHp,
+                        atkMin: catForm.enemyAtkMin,
+                        atkMax: catForm.enemyAtkMax,
+                      },
+                    }),
+                  });
+                  toast({ title: "Category created" });
+                  await loadCategories();
+                  setCatForm({ ...catForm, name: "" });
+                } catch (err) {
+                  toast({ title: "Create failed", description: err instanceof Error ? err.message : "", variant: "destructive" });
+                }
+              }}
+            >
+              Create Category
+            </Button>
+            <div className="space-y-2">
+              {catLoading && categories.length === 0 && (
+                <p className="text-xs text-muted-foreground">Loading categories…</p>
+              )}
+              {!catLoading && categories.length === 0 && (
+                <p className="text-xs text-muted-foreground">No categories yet — create one above.</p>
+              )}
+              {categories.map((c) => (
+                <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/50 p-2 text-sm">
+                  <div className="min-w-0">
+                    <span className="font-medium">{c.enemy.emoji} {c.name}</span>
+                    <p className="truncate text-xs text-muted-foreground">{c.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                        c.isOfficial ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                      )}
+                    >
+                      {c.status}
+                    </span>
+                    {!c.isOfficial && (
+                      <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => void approveCategory(c.id)}>
+                        <Check className="h-3 w-3" /> Approve
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-destructive hover:text-destructive"
+                      onClick={() => {
+                        if (typeof window !== "undefined" && window.confirm(`Delete the "${c.name}" category?`)) {
+                          void deleteCategory(c.id);
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* section tabs + search */}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-2 p-3">
@@ -174,6 +335,15 @@ export function AdminView() {
               )}
             >
               <ShieldCheck className="h-3.5 w-3.5" /> Admins
+            </button>
+            <button
+              onClick={() => setSection("categories")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                section === "categories" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <LibraryBig className="h-3.5 w-3.5" /> Categories
             </button>
           </div>
           <div className="relative min-w-44 flex-1">

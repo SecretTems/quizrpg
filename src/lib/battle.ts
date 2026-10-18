@@ -15,6 +15,7 @@ import type { BattleStateDTO } from "@/lib/types";
 
 export interface BattleQuestion {
   id: string;
+  subject: string;
   text: string;
   options: string[];
   difficulty: Difficulty;
@@ -32,7 +33,7 @@ export interface BattleQuestion {
  *   is too small.
  */
 export async function drawWave(
-  subject: string,
+  subject: string | string[],
   userId: string,
   tier: number,
   mode: BattleModeId,
@@ -41,7 +42,8 @@ export async function drawWave(
   customOnly = false,
 ): Promise<BattleQuestion[]> {
   await connectDB();
-  const wanted = getMode(mode).questionCount;
+  // Question limits per difficulty are removed: draw every available question
+  // of the selected difficulty instead of a fixed per-mode cap.
   const difficulty = pickDifficulty(mode, wave);
 
   // official bank + the player's own custom questions (user-made questions are
@@ -49,17 +51,27 @@ export async function drawWave(
   const poolDocs = await Question.find(
     customOnly
       ? { status: "CUSTOM", ownerId: userId }
-      : { $or: [{ status: "OFFICIAL" }, { status: "CUSTOM", ownerId: userId }] },
+      : { status: "OFFICIAL" },
   ).lean();
   if (poolDocs.length === 0) return [];
   const pool = poolDocs.map(normalizeQuestion);
 
-  let subjectPool = subject === "ALL" ? pool : pool.filter((q) => q.subject === subject);
+  // normalize the filter: "ALL" → no filter; a category may list several
+  // subjects, so accept string[] too ("ALL" inside the list means no filter)
+  const subjectList = Array.isArray(subject)
+    ? subject.filter((s) => s && s !== "ALL")
+    : subject === "ALL"
+      ? []
+      : [subject];
+
+  let subjectPool =
+    subjectList.length === 0 ? pool : pool.filter((q) => subjectList.includes(q.subject));
+  const wanted = subjectPool.filter((q) => q.difficulty === difficulty).length;
   if (subjectPool.length < wanted && !customOnly) {
     // not enough in this subject — mix in official questions from other subjects
     subjectPool = [
       ...subjectPool,
-      ...pool.filter((q) => q.status === "OFFICIAL" && q.subject !== subject),
+      ...pool.filter((q) => q.status === "OFFICIAL" && !subjectList.includes(q.subject)),
     ];
   }
 
@@ -68,21 +80,18 @@ export async function drawWave(
   let allowRepeats = false;
 
   for (let i = 0; i < wanted; i++) {
+    // draw ONLY from the requested difficulty — never fall back to another
     let candidates = subjectPool.filter((q) => q.difficulty === difficulty && !used.has(q.id));
-    if (candidates.length === 0) candidates = subjectPool.filter((q) => !used.has(q.id));
-    if (candidates.length === 0) {
-      // official bank is insufficient — only then allow repeats
-      if (allowRepeats) {
-        candidates = subjectPool.filter((q) => q.difficulty === difficulty);
-        if (candidates.length === 0) candidates = subjectPool;
-      } else {
-        allowRepeats = true;
-        used.clear();
-        candidates = subjectPool.filter((q) => q.difficulty === difficulty);
-        if (candidates.length === 0) candidates = subjectPool;
-      }
+    if (candidates.length === 0 && allowRepeats) {
+      // bank exhausted of fresh questions — allow repeats within this difficulty
+      candidates = subjectPool.filter((q) => q.difficulty === difficulty);
     }
-    if (candidates.length === 0) break;
+    if (candidates.length === 0 && !allowRepeats) {
+      allowRepeats = true;
+      used.clear();
+      candidates = subjectPool.filter((q) => q.difficulty === difficulty);
+    }
+    if (candidates.length === 0) break; // nothing at this difficulty at all
     const choice = candidates[Math.floor(Math.random() * candidates.length)];
     used.add(choice.id);
     picked.push(choice);
@@ -94,6 +103,7 @@ export async function drawWave(
 export function toBattleQuestion(q: NormalizedQuestion): BattleQuestion {
   return {
     id: q.id,
+    subject: q.subject,
     text: q.text,
     options: q.options,
     difficulty: q.difficulty,
@@ -106,10 +116,12 @@ export function toBattleState(
   battle: {
     id: string;
     subject: string;
+    categoryId?: string;
     tier: number;
     mode?: BattleModeId;
     wave?: number;
     enemyName: string;
+    enemySprite?: string;
     enemyMaxHp: number;
     enemyHp: number;
     playerMaxHp: number;
@@ -130,11 +142,12 @@ export function toBattleState(
   return {
     id: battle.id,
     subject: battle.subject,
+    categoryId: battle.categoryId ?? null,
     tier: battle.tier,
     mode,
     wave: battle.wave ?? 1,
     enemyName: battle.enemyName,
-    enemySprite: tier.sprite,
+    enemySprite: battle.enemySprite ?? tier.sprite,
     enemyMaxHp: battle.enemyMaxHp,
     enemyHp: battle.enemyHp,
     playerMaxHp: battle.playerMaxHp,

@@ -5,12 +5,24 @@ import type { BattleModeId } from "@/lib/game";
    QUIZRPG — MongoDB models (Mongoose)
 
    Collections:
-   - users     : accounts (ADMIN / PLAYER) + lifetime stats
+   - users     : accounts (ADMIN / PLAYER) + lifetime stats + wallet/equipment
    - questions : question bank (ownerId null = global bank)
    - battles   : one document per battle, incl. save/resume state
+   - categories: Adventure categories (subjects, difficulties, enemy, owner)
+   - items     : equipment & consumables (weapons, armor, accessories, potions)
    ========================================================= */
 
 /* ---------- User ---------- */
+
+export interface IEquipmentPiece {
+  itemId: string;
+  name: string;
+  /** WEAPON adds atk, ARMOR adds def, ACCESSORY adds bonus stats */
+  slot: "WEAPON" | "ARMOR" | "ACCESSORY";
+  atk: number;
+  def: number;
+  rarity: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
+}
 
 export interface IUser extends Document {
   username: string;
@@ -22,6 +34,16 @@ export interface IUser extends Document {
   battlesLost: number;
   bestScore: number;
   bestStreak: number;
+  /** Adventure currency — earned from victories in official categories */
+  gold: number;
+  /** Premium currency — rare drops from official enemies, spent on gacha */
+  gems: number;
+  /** equipped gear; keys are slots, values snapshot the item's stats */
+  equipment: { WEAPON: IEquipmentPiece | null; ARMOR: IEquipmentPiece | null; ACCESSORY: IEquipmentPiece | null };
+  /** owned items, keyed by item id (each entry stores qty for stackables) */
+  backpack: Record<string, { qty: number; piece?: IEquipmentPiece } | undefined>;
+  /** true once the onboarding tutorial has been completed */
+  tutorialSeen: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,6 +66,21 @@ const UserSchema = new Schema<IUser>(
     battlesLost: { type: Number, default: 0, min: 0 },
     bestScore: { type: Number, default: 0, min: 0 },
     bestStreak: { type: Number, default: 0, min: 0 },
+    gold: { type: Number, default: 0, min: 0 },
+    gems: { type: Number, default: 0, min: 0 },
+    equipment: {
+      type: new Schema(
+        {
+          WEAPON: { type: Schema.Types.Mixed, default: null },
+          ARMOR: { type: Schema.Types.Mixed, default: null },
+          ACCESSORY: { type: Schema.Types.Mixed, default: null },
+        },
+        { _id: false },
+      ),
+      default: () => ({ WEAPON: null, ARMOR: null, ACCESSORY: null }),
+    },
+    backpack: { type: Schema.Types.Mixed, default: {} },
+    tutorialSeen: { type: Boolean, default: false },
   },
   { timestamps: true },
 );
@@ -93,6 +130,14 @@ export interface IBattle extends Document {
   mode: "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER" | "INFINITE";
   /** current wave number (1 for standard battles; increments in INFINITE mode) */
   wave: number;
+  /** set when the opponent comes from an admin-created Adventure category */
+  categoryId?: string;
+  /** snapshot of the category enemy (undefined for the static ENEMY_TIERS roster) */
+  enemySprite?: string;
+  enemyAtkMin?: number;
+  enemyAtkMax?: number;
+  /** subject list for category battles (undefined = single subject / ALL) */
+  battleSubjects?: string[];
   enemyName: string;
   enemyMaxHp: number;
   enemyHp: number;
@@ -119,6 +164,13 @@ const BattleSchema = new Schema<IBattle>(
     mode: { type: String, enum: ["EASY", "MEDIUM", "HARD", "EXPERT", "MASTER", "INFINITE"], default: "EASY" },
     /** current wave number (1 for standard battles; increments in INFINITE mode) */
     wave: { type: Number, default: 1, min: 1 },
+    /** category opponent id (set when fighting an Adventure category monster) */
+    categoryId: { type: String },
+    enemySprite: { type: String },
+    enemyAtkMin: { type: Number },
+    enemyAtkMax: { type: Number },
+    /** subject list for category battles (undefined = single subject / ALL) */
+    battleSubjects: { type: [String] },
     /** display name of the enemy fought */
     enemyName: { type: String, required: true },
     enemyMaxHp: { type: Number, required: true },
@@ -137,11 +189,89 @@ const BattleSchema = new Schema<IBattle>(
 );
 BattleSchema.index({ userId: 1, status: 1 });
 
+/* ---------- Category (Adventure) ---------- */
+
+export interface ICategory extends Document {
+  /** display name, e.g. "Mathematics" */
+  name: string;
+  /** short flavor line shown on the category card */
+  description: string;
+  /** which subjects' question pools this category draws from */
+  subjects: string[];
+  /** which difficulties are playable inside this category */
+  difficulties: ("EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER")[];
+  /** the monster guarding this category */
+  enemy: { name: string; emoji: string; tier: number; baseHp: number; atkMin: number; atkMax: number };
+  /** OFFICIAL = admin-created, playable by everyone; CUSTOM = player's own */
+  isOfficial: boolean;
+  ownerId: string | null;
+  /** player-created categories awaiting admin approval to become official */
+  status: "OFFICIAL" | "CUSTOM" | "PENDING" | "REJECTED";
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const CategorySchema = new Schema<ICategory>(
+  {
+    name: { type: String, required: true, maxlength: 40 },
+    description: { type: String, default: "", maxlength: 200 },
+    subjects: { type: [String], required: true },
+    difficulties: { type: [String], required: true },
+    enemy: {
+      name: { type: String, required: true, maxlength: 40 },
+      emoji: { type: String, default: "👾", maxlength: 8 },
+      tier: { type: Number, required: true, min: 1, max: 8 },
+      baseHp: { type: Number, required: true, min: 20 },
+      atkMin: { type: Number, required: true, min: 1 },
+      atkMax: { type: Number, required: true, min: 1 },
+    },
+    isOfficial: { type: Boolean, default: false },
+    ownerId: { type: String, default: null },
+    status: { type: String, enum: ["OFFICIAL", "CUSTOM", "PENDING", "REJECTED"], default: "CUSTOM" },
+  },
+  { timestamps: true },
+);
+CategorySchema.index({ status: 1, ownerId: 1 });
+
+/* ---------- Item (shop / gacha / equipment) ---------- */
+
+export interface IItem extends Document {
+  name: string;
+  slot: "WEAPON" | "ARMOR" | "ACCESSORY" | "CONSUMABLE";
+  atk: number;
+  def: number;
+  rarity: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
+  /** price in gold; 0 = not sold in shop (gacha-only) */
+  price: number;
+  /** short flavor/effect text */
+  description: string;
+  /** unique gacha items cannot be pulled twice */
+  unique: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const ItemSchema = new Schema<IItem>(
+  {
+    name: { type: String, required: true, maxlength: 40 },
+    slot: { type: String, enum: ["WEAPON", "ARMOR", "ACCESSORY", "CONSUMABLE"], required: true },
+    atk: { type: Number, default: 0, min: 0 },
+    def: { type: Number, default: 0, min: 0 },
+    rarity: { type: String, enum: ["COMMON", "RARE", "EPIC", "LEGENDARY"], default: "COMMON" },
+    price: { type: Number, default: 0, min: 0 },
+    description: { type: String, default: "", maxlength: 200 },
+    unique: { type: Boolean, default: false },
+  },
+  { timestamps: true },
+);
+
 /* ---------- models (guarded for Next.js hot reload) ---------- */
 
 export const User = models.User ?? model<IUser>("User", UserSchema);
 export const Question = models.Question ?? model<IQuestion>("Question", QuestionSchema);
 export const Battle = models.Battle ?? model<IBattle>("Battle", BattleSchema);
+export const Category = models.Category ?? model<ICategory>("Category", CategorySchema);
+export const Item = models.Item ?? model<IItem>("Item", ItemSchema);
 
 /* =========================================================
    Lean-doc normalizers: Mongo `_id` (ObjectId) → string `id`
@@ -151,6 +281,8 @@ export const Battle = models.Battle ?? model<IBattle>("Battle", BattleSchema);
 type UserLean = FlattenMaps<IUser> & { _id: Types.ObjectId };
 type QuestionLean = FlattenMaps<IQuestion> & { _id: Types.ObjectId };
 type BattleLean = FlattenMaps<IBattle> & { _id: Types.ObjectId };
+type CategoryLean = FlattenMaps<ICategory> & { _id: Types.ObjectId };
+type ItemLean = FlattenMaps<IItem> & { _id: Types.ObjectId };
 
 export interface NormalizedUser {
   id: string;
@@ -162,6 +294,11 @@ export interface NormalizedUser {
   battlesLost: number;
   bestScore: number;
   bestStreak: number;
+  gold: number;
+  gems: number;
+  equipment: { WEAPON: IEquipmentPiece | null; ARMOR: IEquipmentPiece | null; ACCESSORY: IEquipmentPiece | null };
+  backpack: Record<string, { qty: number; piece?: IEquipmentPiece } | undefined>;
+  tutorialSeen: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -188,6 +325,12 @@ export interface NormalizedBattle {
   tier: number;
   mode: BattleModeId;
   wave: number;
+  /** category opponent id (set when fighting an Adventure category monster) */
+  categoryId?: string;
+  enemySprite?: string;
+  enemyAtkMin?: number;
+  enemyAtkMax?: number;
+  battleSubjects?: string[];
   enemyName: string;
   enemyMaxHp: number;
   enemyHp: number;
@@ -204,6 +347,34 @@ export interface NormalizedBattle {
   updatedAt: Date;
 }
 
+export interface NormalizedCategory {
+  id: string;
+  name: string;
+  description: string;
+  subjects: string[];
+  difficulties: ("EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER")[];
+  enemy: { name: string; emoji: string; tier: number; baseHp: number; atkMin: number; atkMax: number };
+  isOfficial: boolean;
+  ownerId: string | null;
+  status: "OFFICIAL" | "CUSTOM" | "PENDING" | "REJECTED";
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface NormalizedItem {
+  id: string;
+  name: string;
+  slot: "WEAPON" | "ARMOR" | "ACCESSORY" | "CONSUMABLE";
+  atk: number;
+  def: number;
+  rarity: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
+  price: number;
+  description: string;
+  unique: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export type BattleModeRecord = Pick<IBattle, "mode" | "wave">;
 
 function toId(id: Types.ObjectId | string): string {
@@ -216,6 +387,20 @@ export function normalizeUser(doc: UserLean): NormalizedUser {
   void __v;
   void passwordHash;
   return { id: toId(_id), ...(rest as Omit<NormalizedUser, "id">) };
+}
+
+/** Category lean doc → plain object with string id. */
+export function normalizeCategory(doc: CategoryLean): NormalizedCategory {
+  const { _id, __v, ...rest } = doc as CategoryLean & { __v?: number };
+  void __v;
+  return { id: toId(_id), ...(rest as Omit<NormalizedCategory, "id">) };
+}
+
+/** Item lean doc → plain object with string id. */
+export function normalizeItem(doc: ItemLean): NormalizedItem {
+  const { _id, __v, ...rest } = doc as ItemLean & { __v?: number };
+  void __v;
+  return { id: toId(_id), ...(rest as Omit<NormalizedItem, "id">) };
 }
 
 /** Question lean doc → plain object with string id. */

@@ -12,6 +12,8 @@ export interface SafeUser {
   battlesLost: number;
   bestScore: number;
   bestStreak: number;
+  /** true once the onboarding tutorial has been completed */
+  tutorialSeen: boolean;
   createdAt: string;
 }
 
@@ -33,6 +35,8 @@ export interface QuestionDTO {
 export interface BattleStateDTO {
   id: string;
   subject: string;
+  /** set when the opponent is an Adventure category monster */
+  categoryId: string | null;
   tier: number;
   mode: "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER" | "INFINITE";
   wave: number;
@@ -49,6 +53,7 @@ export interface BattleStateDTO {
   status: "ONGOING" | "WON" | "LOST" | "FLED";
   question: {
     id: string;
+    subject: string;
     text: string;
     options: string[];
     difficulty: "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER";

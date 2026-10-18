@@ -2,6 +2,24 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { User, normalizeUser } from "@/lib/models";
 import { hashPassword, setSessionCookie } from "@/lib/auth";
+import { itemById, type ItemDef } from "@/lib/adventure-data";
+
+const STARTER_EQUIPMENT: { slot: "WEAPON" | "ARMOR" | "ACCESSORY"; itemId: string }[] = [
+  { slot: "WEAPON", itemId: "w-wood-sword" },
+  { slot: "ARMOR", itemId: "a-wood-armor" },
+];
+
+function toEquipmentPiece(item: ItemDef | undefined) {
+  if (!item) return null;
+  return {
+    itemId: item.id,
+    name: item.name,
+    slot: item.slot,
+    atk: item.atk,
+    def: item.def,
+    rarity: item.rarity,
+  };
+}
 
 export async function POST(req: Request) {
   try {
@@ -26,11 +44,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "That username is already taken." }, { status: 409 });
     }
 
+    const equipment: { WEAPON: ReturnType<typeof toEquipmentPiece> | null; ARMOR: ReturnType<typeof toEquipmentPiece> | null; ACCESSORY: ReturnType<typeof toEquipmentPiece> | null } = {
+      WEAPON: null,
+      ARMOR: null,
+      ACCESSORY: null,
+    };
+    for (const { slot, itemId } of STARTER_EQUIPMENT) {
+      const piece = toEquipmentPiece(itemById(itemId));
+      if (piece) equipment[slot as keyof typeof equipment] = piece;
+    }
+
     const created = await User.create({
       username,
       displayName: displayName || username,
       passwordHash: hashPassword(password),
       role: "PLAYER",
+      equipment,
     });
 
     await setSessionCookie(created.id);

@@ -4,7 +4,7 @@ import { connectDB } from "@/lib/db";
 import { Battle, Question, User, normalizeBattle, normalizeQuestion } from "@/lib/models";
 import { getSessionUser } from "@/lib/auth";
 import { getTier, computeAnswer, levelProgress, getMode, infiniteWaveBonus } from "@/lib/game";
-import type { BattleModeId } from "@/lib/game";
+import type { BattleModeId, EnemyTier } from "@/lib/game";
 import { drawWave, newlyUnlockedTier, toBattleQuestion } from "@/lib/battle";
 import type { AnswerResultDTO, BattleStateDTO } from "@/lib/types";
 import type { Difficulty } from "@/lib/game";
@@ -39,7 +39,13 @@ export async function POST(req: Request, { params }: Params) {
   }
   const question = normalizeQuestion(qDoc);
 
-  const tier = getTier(battleDoc.tier);
+  // category opponents snapshot their own attack range on the battle — use it
+  // instead of the static tier roster's stats
+  const baseTier = getTier(battleDoc.tier);
+  const tier: EnemyTier =
+    battleDoc.enemyAtkMin != null && battleDoc.enemyAtkMax != null
+      ? { ...baseTier, atkMin: battleDoc.enemyAtkMin, atkMax: battleDoc.enemyAtkMax }
+      : baseTier;
   const wasCorrect = choiceIndex === question.correctIndex;
 
   // user-made (custom/pending) questions are practice-only: no damage, no XP,
@@ -81,6 +87,8 @@ export async function POST(req: Request, { params }: Params) {
   let status: "ONGOING" | "WON" | "LOST" = "ONGOING";
   let victoryBonus: { xp: number; score: number } | null = null;
   let waveCleared = false;
+  let goldDrop = 0;
+  let gemDrop = 0;
   const mode = getMode(battleDoc.mode as BattleModeId);
 
   if (mode.infinite) {
@@ -98,10 +106,24 @@ export async function POST(req: Request, { params }: Params) {
       }
       victoryBonus = noReward ? { xp: 0, score: 0 } : bonus;
     }
+
   } else if (enemyHp <= 0) {
     status = "WON";
     victoryBonus = { xp: mode.rewardXp, score: mode.rewardScore + bestStreak * 10 };
-    if (!noReward) {
+    if (!noReward && !isCustom) {
+      // Official enemies drop gold; harder enemies drop more and have a higher
+      // chance to drop a gem for the gacha.
+      goldDrop = Math.floor(8 + tier.tier * 6 + Math.random() * 10);
+      const gemChance = Math.min(0.05 + tier.tier * 0.03, 0.6);
+      if (Math.random() < gemChance) gemDrop = 1;
+      await User.updateOne(
+        { _id: user.id },
+        {
+          $inc: { xp: victoryBonus.xp, battlesWon: 1, gold: goldDrop, gems: gemDrop },
+          $max: { bestScore: score + victoryBonus.score },
+        },
+      );
+    } else if (!noReward) {
       await User.updateOne(
         { _id: user.id },
         {
@@ -132,7 +154,10 @@ export async function POST(req: Request, { params }: Params) {
       // standard modes end the battle unless the pool had leftover questions
       const nextWave = battleDoc.wave + 1;
       const wave = await drawWave(
-        battleDoc.subject,
+        // category battles keep drawing from the category's own subjects
+        battleDoc.battleSubjects && battleDoc.battleSubjects.length > 0
+          ? battleDoc.battleSubjects
+          : battleDoc.subject,
         user.id,
         battleDoc.tier,
         battleDoc.mode as BattleModeId,

@@ -160,6 +160,68 @@ export function streakBonus(streak: number): number {
   return Math.max(0, Math.min(streak - 1, 5)) * 3;
 }
 
+/* ---------- Adventure: equipment & wallet ---------- */
+
+export interface EquipmentStats {
+  atkBonus: number;
+  defBonus: number;
+}
+
+/** Sum of atk/def across the three equipped pieces. */
+export function equipmentStats(equipment: {
+  WEAPON: { atk: number; def: number } | null;
+  ARMOR: { atk: number; def: number } | null;
+  ACCESSORY: { atk: number; def: number } | null;
+} | null | undefined): EquipmentStats {
+  const stats: EquipmentStats = { atkBonus: 0, defBonus: 0 };
+  if (!equipment) return stats;
+  for (const slot of ["WEAPON", "ARMOR", "ACCESSORY"] as const) {
+    const piece = equipment[slot];
+    if (piece) {
+      stats.atkBonus += piece.atk ?? 0;
+      stats.defBonus += piece.def ?? 0;
+    }
+  }
+  return stats;
+}
+
+/** Gold reward for beating an official Adventure enemy — scales with tier & wave. */
+export function goldReward(tier: number, wave = 1): number {
+  return Math.round((25 + tier * 15) * Math.sqrt(wave));
+}
+
+/** Gem chance & amount — official enemies only, rare drop. */
+export function gemReward(tier: number, wave = 1): number {
+  const chance = Math.min(0.1 + tier * 0.02, 0.35) * Math.min(wave, 4);
+  return Math.random() < chance ? 1 + Math.floor(Math.random() * Math.ceil(tier / 3)) : 0;
+}
+
+/** STARTER_GEAR ids defined in src/lib/adventure-data.ts */
+export const STARTER_GEAR = ["w-wood-sword", "a-wood-armor"];
+
+export interface AnswerOutcomeWithGear extends AnswerOutcome {
+  /** damage blocked by armor on a counterattack */
+  blocked: number;
+}
+
+/**
+ * Adventure variant of computeAnswer: armor absorbs part of the enemy's
+ * counterattack (def % of incoming damage, capped at 70%).
+ */
+export function computeAdventureAnswer(
+  difficulty: Difficulty,
+  wasCorrect: boolean,
+  streakBefore: number,
+  tier: EnemyTier,
+  defBonus: number,
+): AnswerOutcomeWithGear {
+  const base = computeAnswer(difficulty, wasCorrect, streakBefore, tier);
+  if (base.correct) return { ...base, blocked: 0 };
+  const raw = base.damageTaken;
+  const blocked = Math.min(Math.round((defBonus / 100) * raw), Math.round(raw * 0.7));
+  return { ...base, damageTaken: raw - blocked, blocked };
+}
+
 export interface AnswerOutcome {
   correct: boolean;
   damageDealt: number;

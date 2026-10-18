@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Swords, LibraryBig, Trophy, UserRound, ShieldCheck, Sun, Moon, ScrollText } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/lib/store";
+import { api, useAuth } from "@/lib/store";
 import { levelProgress } from "@/lib/game";
 import { ArenaView } from "@/components/quizrpg/arena-view";
 import { QuestionBankView } from "@/components/quizrpg/question-bank-view";
@@ -17,7 +17,7 @@ import { HowToPlayDialog } from "@/components/quizrpg/how-to-play";
 type Tab = "arena" | "bank" | "leaderboard" | "profile" | "admin";
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "arena", label: "Arena", icon: <Swords className="h-4 w-4" /> },
+  { id: "arena", label: "Adventure", icon: <Swords className="h-4 w-4" /> },
   { id: "bank", label: "Bank", icon: <LibraryBig className="h-4 w-4" /> },
   { id: "leaderboard", label: "Ranks", icon: <Trophy className="h-4 w-4" /> },
   { id: "profile", label: "Profile", icon: <UserRound className="h-4 w-4" /> },
@@ -28,9 +28,24 @@ export function AppShell() {
   const refreshUser = useAuth((s) => s.refresh);
   const { theme, setTheme } = useTheme();
   const [tab, setTab] = useState<Tab>("arena");
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+
+  // Auto-show the tutorial once for brand-new players, then never again.
+  // (must run before the early return so the hook order stays stable)
+  useEffect(() => {
+    if (user && !user.tutorialSeen) setTutorialOpen(true);
+  }, [user]);
 
   if (!user) return null;
   const lp = levelProgress(user.xp);
+
+  const handleTutorialClose = async (open: boolean) => {
+    setTutorialOpen(open);
+    if (!open && user && !user.tutorialSeen) {
+      await api("/api/auth/me", { method: "PATCH", body: JSON.stringify({ tutorialSeen: true }) }).catch(() => undefined);
+      void refreshUser();
+    }
+  };
   const tabs =
     user.role === "ADMIN" || user.role === "SUPER_ADMIN"
       ? [...TABS, { id: "admin" as Tab, label: user.role === "SUPER_ADMIN" ? "Super Admin" : "Admin", icon: <ShieldCheck className="h-4 w-4" /> }]
@@ -74,7 +89,7 @@ export function AppShell() {
             >
               ✨ Lv {lp.level}
             </span>
-            <HowToPlayDialog>
+            <HowToPlayDialog open={tutorialOpen} onOpenChange={handleTutorialClose}>
               <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="How to play">
                 <ScrollText className="h-4 w-4" />
               </Button>
