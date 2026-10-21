@@ -43,7 +43,7 @@ type Slot = "WEAPON" | "ARMOR" | "ACCESSORY";
 const SLOT_LABEL: Record<Slot, string> = { WEAPON: "Weapon", ARMOR: "Armor", ACCESSORY: "Accessory" };
 const SLOTS: Slot[] = ["WEAPON", "ARMOR", "ACCESSORY"];
 const PER_PAGE = 25; // 5 × 5 storage grid
-const INVENTORY_QUICK_COUNT = 6;
+const INVENTORY_QUICK_COUNT = 3;
 
 const RING_BY_RARITY: Record<string, string> = {
   LEGENDARY: "border-amber-500/70",
@@ -87,13 +87,13 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
   const pages = Math.max(1, Math.ceil(entries.length / PER_PAGE));
   const safePage = Math.min(page, pages - 1);
   const pageEntries = entries.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
-  // quick-access row: consumables only (potions, bombs, etc.) - equippable gear lives in Storage
-  const inventoryItems = entries
-    .filter(([id]) => {
-      const d = itemById(id);
-      return d && d.slot === "CONSUMABLE";
-    })
-    .slice(0, INVENTORY_QUICK_COUNT);
+  // quick-access row: consumables only (potions, bombs, etc.) - max 3 different items
+  const allConsumables = entries.filter(([id]) => {
+    const d = itemById(id);
+    return d && d.slot === "CONSUMABLE";
+  });
+  const overflowConsumables = allConsumables.slice(INVENTORY_QUICK_COUNT);
+  const inventoryItems = allConsumables.slice(0, INVENTORY_QUICK_COUNT);
 
   async function act(body: Record<string, unknown>, okMsg: string) {
     setMessage(null);
@@ -200,7 +200,15 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
             </div>
 
             <div>
-              <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Inventory (consumables)</h4>
+              <div className="mb-2 flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Inventory (consumables)</h4>
+                <span className="text-[11px] tabular-nums text-muted-foreground">{inventoryItems.length}/3</span>
+              </div>
+              {overflowConsumables.length > 0 && (
+                <p className="mb-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-600 dark:text-amber-400">
+                  Inventory holds only 3 different consumables - extras ({overflowConsumables.map(([id]) => itemById(id)?.name ?? id).join(", ")}) live in Storage.
+                </p>
+              )}
               {inventoryItems.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border/60 p-3 text-xs text-muted-foreground">
                   No potions or bombs in your backpack - visit the Shop.

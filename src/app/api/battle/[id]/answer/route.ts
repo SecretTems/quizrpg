@@ -53,18 +53,18 @@ export async function POST(req: Request, { params }: Params) {
   let nextMonsterIndex: number | null = null;
   const wasCorrect = choiceIndex === question.correctIndex;
 
-  // user-made (custom/pending) questions are practice-only: no damage, no XP,
-  // no score and no stats - they don't affect the battle either way
-  const isCustom = question.status !== "OFFICIAL";
-
-  // for battles against a player-created category, the creator's custom
-  // questions stay eligible when drawing the next wave
+  // user-made (custom/pending) questions are practice-only in classic battles —
+  // BUT in a player-created category fight, the category owner's own custom
+  // questions are the intended content and deal full damage.
   const ownerIds = battleDoc.categoryId
     ? await (async () => {
         const cat = await Category.findById(battleDoc.categoryId).select("ownerId").lean();
         return cat?.ownerId ? [String(cat.ownerId)] : [];
       })()
     : [];
+  const countsForBattle = question.status === "OFFICIAL" ||
+    (question.status === "CUSTOM" && ownerIds.length > 0 && question.ownerId === ownerIds[0]);
+  const isCustom = !countsForBattle;
   const outcome = isCustom
     ? {
         correct: wasCorrect,
@@ -88,7 +88,7 @@ export async function POST(req: Request, { params }: Params) {
   const xpBefore = levelProgress(user.xp).level;
 
   // XP accrues immediately so progress persists even mid-battle.
-  // Custom (user-made) questions are practice-only - no XP and no streak stats.
+  // Custom (user-made) questions are practice-only outside custom-category battles.
   if (!isCustom) {
     await User.updateOne({ _id: user.id }, { $inc: { xp: outcome.xpGained } });
     if (streak > user.bestStreak) {
@@ -171,6 +171,30 @@ export async function POST(req: Request, { params }: Params) {
       battleSubjects:
         nextMonster.subjects.length > 0 ? nextMonster.subjects : battleDoc.battleSubjects,
     });
+  }
+
+  // --- monster modifiers on the current monster ---
+  const currentMonster = monsters[currentMonsterIndex];
+  if (currentMonster?.modifiers?.length) {
+    for (const mod of currentMonster.modifiers) {
+      if (Math.random() * 100 >= mod.chance) continue;
+      switch (mod.id) {
+        case "RESTING":
+          // the monster heals if the player got the question wrong
+          if (!wasCorrect && mod.amount > 0 && enemyHp > 0) {
+            enemyHp = Math.min(battleDoc.enemyMaxHp, enemyHp + mod.amount);
+          }
+          break;
+        case "TAX_COLLECTING":
+          if (!wasCorrect && mod.amount > 0) {
+            await User.updateOne({ _id: user.id }, { $inc: { gold: -mod.amount } });
+          }
+          break;
+        // SHUFFLER / RESTRAINT / DISABLER are client-side; consumed in battle-screen
+        default:
+          break;
+      }
+    }
   }
 
   // --- advance to next question / next wave ---

@@ -1,9 +1,7 @@
 "use client";
 
-"use client";
-
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Loader2, Pencil, Plus, Skull, Trash2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Loader2, Pencil, Plus, Skull, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -90,6 +88,7 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [modsOpen, setModsOpen] = useState(false);
   const [userSubjects, setUserSubjects] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -346,7 +345,7 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editIndex === null ? "New monster" : "Edit monster"}</DialogTitle>
             <DialogDescription>
@@ -439,7 +438,18 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
             </div>
 
             <div className="col-span-2 space-y-1.5">
-              <Label>Modifiers (optional)</Label>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between rounded-md border border-border/60 px-3 py-2 text-left transition-colors hover:bg-accent"
+                onClick={() => setModsOpen((o) => !o)}
+                aria-expanded={modsOpen}
+              >
+                <span className="text-sm font-semibold">
+                  Modifiers {form.modifiers.length > 0 && <span className="text-primary">({form.modifiers.length} active)</span>}
+                </span>
+                <ChevronDown className={cn("h-4 w-4 transition-transform", modsOpen && "rotate-180")} />
+              </button>
+              {modsOpen && (
               <div className="space-y-2">
                 {ALL_MONSTER_MODIFIERS.map((mod) => {
                   const entry = form.modifiers.find((m) => m.id === mod.id);
@@ -525,6 +535,7 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
                   );
                 })}
               </div>
+              )}
             </div>
           </div>
 

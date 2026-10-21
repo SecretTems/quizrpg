@@ -93,7 +93,7 @@ export const MONSTER_MODIFIERS: Record<MonsterModifierId, MonsterModifier> = {
     id: "RESTING",
     label: "Resting",
     emoji: "😴",
-    description: "If you get the question wrong, the monster heals.",
+    description: "Heals 8 HP whenever you answer wrong.",
     defaultChance: 50,
     amount: 8,
   },

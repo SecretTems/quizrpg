@@ -80,7 +80,6 @@ export function QuestionBankView() {
   const [maker, setMaker] = useState<Maker>("questions");
   const [categories, setCategories] = useState<NormalizedCategory[]>([]);
   const [filterCategoryId, setFilterCategoryId] = useState("ALL");
-  const [filterMonsterIndex, setFilterMonsterIndex] = useState("ALL");
   const [monsterMakerCatId, setMonsterMakerCatId] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -230,15 +229,10 @@ export function QuestionBankView() {
   const canEdit = (q: QuestionDTO) => isStaff || q.ownerId === user?.id;
   const canModerate = (q: QuestionDTO) => isStaff && q.status === "PENDING";
 
-  /* category / monster filters apply on top of the server-side query */
+  /* category filter applies on top of the server-side query */
   const selectedFilterCat = categories.find((c) => c.id === filterCategoryId) ?? null;
-  const filterMonsters = selectedFilterCat?.monsters ?? [];
   const visibleQuestions = questions.filter((q) => {
     if (selectedFilterCat && !selectedFilterCat.subjects.includes(q.subject)) return false;
-    if (filterMonsterIndex !== "ALL") {
-      const m = filterMonsters[Number(filterMonsterIndex)];
-      if (m && m.subjects.length > 0 && !m.subjects.includes(q.subject)) return false;
-    }
     return true;
   });
 
@@ -356,7 +350,6 @@ export function QuestionBankView() {
             value={filterCategoryId}
             onValueChange={(v) => {
               setFilterCategoryId(v);
-              setFilterMonsterIndex("ALL");
             }}
           >
             <SelectTrigger className="w-44" aria-label="Filter by category">
@@ -366,19 +359,6 @@ export function QuestionBankView() {
               <SelectItem value="ALL">All categories</SelectItem>
               {categories.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterMonsterIndex} onValueChange={setFilterMonsterIndex} disabled={!selectedFilterCat}>
-            <SelectTrigger className="w-40" aria-label="Filter by monster">
-              <SelectValue placeholder="Monster" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All monsters</SelectItem>
-              {filterMonsters.map((m, i) => (
-                <SelectItem key={`${m.name}-${i}`} value={String(i)}>
-                  {m.emoji} {m.name}
-                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -407,7 +387,7 @@ export function QuestionBankView() {
             <p className="font-semibold">Nothing here yet</p>
             <p className="max-w-sm text-sm text-muted-foreground">
               {questions.length > 0 && visibleQuestions.length === 0
-                ? "No questions match the selected category or monster filter."
+                ? "No questions match the selected category filter."
                 : scope === "official"
                   ? "The official bank has no matching questions yet."
                   : scope === "pending"

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Lock, Loader2, Play, Swords, RotateCcw, Trophy, Skull, ArrowUpCircle, Sparkles, Shield, ShoppingBag, Users, Crown, Gift } from "lucide-react";
+import { Lock, Loader2, Play, Swords, RotateCcw, Trophy, Skull, ArrowUpCircle, Sparkles, Shield, ShoppingBag, Users, Crown, Gift, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -40,6 +41,8 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   const [tier, setTier] = useState<number>(1);
   const [mode, setMode] = useState<BattleModeId>("EASY");
   const [categories, setCategories] = useState<NormalizedCategory[]>([]);
+  /** search text for the category picker in the Play modal */
+  const [categorySearch, setCategorySearch] = useState("");
   /** selected DB Adventure category opponent - overrides the static tier roster */
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleStateDTO | null>(null);
@@ -355,12 +358,53 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
             </div>
           ))}
 
-          {/* DB Adventure categories - monsters defined by admin-approved categories */}
+          {/* DB categories - monsters defined by admin-approved categories */}
           {categories.length > 0 && (
             <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">🌍 Adventure Categories</p>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">🌍 Categories</p>
+                {/* dropdown jump-to-category */}
+                <select
+                  value={categoryId ?? ""}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setCategoryId(e.target.value);
+                      setTier(1);
+                    } else {
+                      setCategoryId(null);
+                    }
+                  }}
+                  className="h-8 max-w-[220px] rounded-md border bg-background px-2 text-xs"
+                  aria-label="Jump to category"
+                >
+                  <option value="">Classic opponents...</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <div className="relative ml-auto min-w-[160px] flex-1 sm:max-w-xs">
+                  <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                  <Input
+                    value={categorySearch}
+                    onChange={(e) => setCategorySearch(e.target.value)}
+                    placeholder="Search categories..."
+                    className="h-8 pl-7 text-xs"
+                  />
+                </div>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {categories.map((c) => {
+                {categories
+                  .filter((c) => {
+                    const q = categorySearch.trim().toLowerCase();
+                    if (!q) return true;
+                    return (
+                      c.name.toLowerCase().includes(q) ||
+                      c.description.toLowerCase().includes(q) ||
+                      c.subjects.some((s) => s.toLowerCase().includes(q)) ||
+                      (c.monsters ?? []).some((m) => m.name.toLowerCase().includes(q))
+                    );
+                  })
+                  .map((c) => {
                   const active = categoryId === c.id;
                   return (
                     <button
@@ -381,7 +425,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                           {c.monsters?.[0]?.emoji || c.enemy.emoji}
                         </span>
                       )}
-                      <span className="mt-2 block font-display text-xs">{c.name}</span>
+                      <span className="mt-2 block break-words font-display text-xs">{c.name}</span>
                       {c.status !== "OFFICIAL" && c.ownerId === user?.id && (
                         <span className="mt-1 inline-flex w-fit rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
                           {c.status === "PENDING"
@@ -391,10 +435,30 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                               : "🧩 Private"}
                         </span>
                       )}
-                      <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">
+                      <span className="mt-1 block break-words text-[11px] leading-snug text-muted-foreground">
                         {c.description || `Guardian of ${c.name}`}
                       </span>
                       <span className="mt-1 block text-[11px] text-muted-foreground">📚 {c.subjects.join(" · ")}</span>
+                      {/* monster lineup - scrollable when the category has many monsters */}
+                      {(c.monsters?.length ?? 0) > 0 && (
+                        <span className="mt-2 block max-h-40 overflow-y-auto rounded-lg border border-border/60 bg-background/40 p-1">
+                          <span className="grid grid-cols-2 gap-1">
+                            {c.monsters!.map((m, mi) => (
+                              <span key={mi} className="flex items-center gap-1.5 rounded-md bg-accent/60 p-1.5 text-left">
+                                {m.image ? (
+                                  <img src={m.image} alt="" className="h-7 w-7 shrink-0 rounded object-cover" aria-hidden="true" />
+                                ) : (
+                                  <span className="shrink-0 text-lg" aria-hidden="true">{m.emoji}</span>
+                                )}
+                                <span className="min-w-0">
+                                  <span className="block truncate text-[10px] font-bold" title={m.name}>{m.name}</span>
+                                  <span className="block text-[9px] text-muted-foreground">HP {m.hp} · ATK {m.atkMin}-{m.atkMax}</span>
+                                </span>
+                              </span>
+                            ))}
+                          </span>
+                        </span>
+                      )}
                       <span className="mt-2 flex flex-wrap gap-1 text-[10px] font-bold">
                         {(c.monsters?.length ?? 0) > 0 ? (
                           <>
@@ -441,7 +505,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block font-display text-2xl leading-tight">Play</span>
-              <span className="mt-1 block text-sm font-normal opacity-90">
+              <span className="mt-1 block break-words text-sm font-normal opacity-90">
                 Pick a subject, difficulty, and opponent - then battle it out.
               </span>
             </span>
