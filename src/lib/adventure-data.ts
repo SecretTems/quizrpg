@@ -1,5 +1,5 @@
 /**
- * Adventure content — starter gear, shop catalog, gacha pool, starter categories.
+ * Adventure content - starter gear, shop catalog, gacha pool, starter categories.
  * Pure data, shared by server seeding and UI display.
  */
 
@@ -104,7 +104,7 @@ export const STARTER_CATEGORIES: CategoryDef[] = [
   },
   {
     name: "Science",
-    description: "Biology, chemistry, physics — the Lab Lich awaits.",
+    description: "Biology, chemistry, physics - the Lab Lich awaits.",
     subjects: ["Science"],
     difficulties: ["EASY", "MEDIUM", "HARD"],
     enemy: { name: "Lab Lich", emoji: "🧪", tier: 6, baseHp: 180, atkMin: 15, atkMax: 20 },

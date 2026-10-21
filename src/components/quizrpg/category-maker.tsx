@@ -211,7 +211,7 @@ export function CategoryMaker({ categories, onReload, onManageMonsters }: Catego
                   </div>
                   <p className="truncate text-xs text-muted-foreground">{c.description || "No description"}</p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    📚 {c.subjects.join(" · ") || "—"} · 👾 {c.monsters?.length ?? 0} monster
+                    📚 {c.subjects.join(" · ") || "-"} · 👾 {c.monsters?.length ?? 0} monster
                     {(c.monsters?.length ?? 0) === 1 ? "" : "s"}
                   </p>
                 </div>
@@ -319,6 +319,7 @@ export function CategoryMaker({ categories, onReload, onManageMonsters }: Catego
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 placeholder="Short flavor line shown on the category card"
                 rows={2}
+                className="resize-none break-words"
               />
             </div>
             <div className="space-y-1.5">
@@ -328,6 +329,7 @@ export function CategoryMaker({ categories, onReload, onManageMonsters }: Catego
                 value={form.subjects}
                 onChange={(e) => setForm({ ...form, subjects: e.target.value })}
                 placeholder="English, History (comma separated)"
+                maxLength={200}
               />
             </div>
             <div className="space-y-1.5">

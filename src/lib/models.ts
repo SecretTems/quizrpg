@@ -2,7 +2,7 @@ import { Schema, model, models, type FlattenMaps, type Types } from "mongoose";
 import type { BattleModeId } from "@/lib/game";
 
 /* =========================================================
-   QUIZRPG — MongoDB models (Mongoose)
+   QUIZRPG - MongoDB models (Mongoose)
 
    Collections:
    - users     : accounts (ADMIN / PLAYER) + lifetime stats + wallet/equipment
@@ -27,7 +27,7 @@ export interface IEquipmentPiece {
 export interface IUser extends Document {
   username: string;
   displayName: string;
-  /** custom profile picture (data URL) — empty falls back to the default emoji */
+   /** custom profile picture (data URL) - empty falls back to the default emoji */
   avatar: string;
   passwordHash: string;
   role: "ADMIN" | "SUPER_ADMIN" | "PLAYER";
@@ -36,9 +36,9 @@ export interface IUser extends Document {
   battlesLost: number;
   bestScore: number;
   bestStreak: number;
-  /** Adventure currency — earned from victories in official categories */
+   /** Adventure currency - earned from victories in official categories */
   gold: number;
-  /** Premium currency — rare drops from official enemies, spent on gacha */
+   /** Premium currency - rare drops from official enemies, spent on gacha */
   gems: number;
   /** equipped gear; keys are slots, values snapshot the item's stats */
   equipment: { WEAPON: IEquipmentPiece | null; ARMOR: IEquipmentPiece | null; ACCESSORY: IEquipmentPiece | null };
@@ -46,6 +46,18 @@ export interface IUser extends Document {
   backpack: Record<string, { qty: number; piece?: IEquipmentPiece } | undefined>;
   /** true once the onboarding tutorial has been completed */
   tutorialSeen: boolean;
+  /** email address (required for all accounts) */
+  email: string;
+  /** true once the email has been verified via OTP */
+  emailVerified: boolean;
+  /** 6-digit OTP code for email verification / password reset */
+  otpCode: string | null;
+  /** epoch ms when the OTP code expires */
+  otpExpires: number | null;
+  /** 2FA is enabled for this account (admins/super admins) */
+  twoFactorEnabled: boolean;
+  /** base32 secret for TOTP 2FA */
+  twoFactorSecret: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -84,6 +96,12 @@ const UserSchema = new Schema<IUser>(
     },
     backpack: { type: Schema.Types.Mixed, default: {} },
     tutorialSeen: { type: Boolean, default: false },
+    email: { type: String, required: true, unique: true, lowercase: true, maxlength: 254 },
+    emailVerified: { type: Boolean, default: false },
+    otpCode: { type: String, default: null },
+    otpExpires: { type: Number, default: null },
+    twoFactorEnabled: { type: Boolean, default: false },
+    twoFactorSecret: { type: String, default: null },
   },
   { timestamps: true },
 );
@@ -130,7 +148,7 @@ QuestionSchema.index({ ownerId: 1 });
 export interface BattleMonster {
   name: string;
   emoji: string;
-  /** custom monster art (data URL) — empty falls back to the emoji */
+   /** custom monster art (data URL) - empty falls back to the emoji */
   image?: string;
   hp: number;
   atkMin: number;
@@ -238,7 +256,7 @@ BattleSchema.index({ userId: 1, status: 1 });
 export interface IMonster {
   name: string;
   emoji: string;
-  /** custom monster art (data URL) — empty falls back to the emoji */
+   /** custom monster art (data URL) - empty falls back to the emoji */
   image?: string;
   hp: number;
   atkMin: number;
@@ -256,7 +274,7 @@ export interface ICategory extends Document {
   subjects: string[];
   /** which difficulties are playable inside this category */
   difficulties: ("EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER")[];
-  /** custom category art (data URL) — empty falls back to the first monster's emoji */
+  /** custom category art (data URL) - empty falls back to the first monster's emoji */
   icon?: string;
   /** the legacy single monster guarding this category (kept for old data) */
   enemy: { name: string; emoji: string; tier: number; baseHp: number; atkMin: number; atkMax: number };
@@ -364,6 +382,8 @@ export interface NormalizedUser {
   username: string;
   displayName: string;
   avatar: string;
+  email: string;
+  emailVerified: boolean;
   role: string;
   xp: number;
   battlesWon: number;
@@ -375,6 +395,7 @@ export interface NormalizedUser {
   equipment: { WEAPON: IEquipmentPiece | null; ARMOR: IEquipmentPiece | null; ACCESSORY: IEquipmentPiece | null };
   backpack: Record<string, { qty: number; piece?: IEquipmentPiece } | undefined>;
   tutorialSeen: boolean;
+  twoFactorEnabled: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

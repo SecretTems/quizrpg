@@ -1,5 +1,5 @@
 /**
- * QUIZRPG game engine — enemy tiers, combat math, XP curve, question drawing.
+ * QUIZRPG game engine - enemy tiers, combat math, XP curve, question drawing.
  * Shared by API routes (server-authoritative) and UI (display only).
  */
 
@@ -185,12 +185,12 @@ export function equipmentStats(equipment: {
   return stats;
 }
 
-/** Gold reward for beating an official Adventure enemy — scales with tier & wave. */
+/** Gold reward for beating an official Adventure enemy - scales with tier & wave. */
 export function goldReward(tier: number, wave = 1): number {
   return Math.round((25 + tier * 15) * Math.sqrt(wave));
 }
 
-/** Gem chance & amount — official enemies only, rare drop. */
+/** Gem chance & amount - official enemies only, rare drop. */
 export function gemReward(tier: number, wave = 1): number {
   const chance = Math.min(0.1 + tier * 0.02, 0.35) * Math.min(wave, 4);
   return Math.random() < chance ? 1 + Math.floor(Math.random() * Math.ceil(tier / 3)) : 0;
@@ -269,7 +269,7 @@ export function computeAnswer(
 
 /* ---------- leveling ---------- */
 
-/** XP required to advance FROM level n to n+1 — steeper curve for a longer grind. */
+/** XP required to advance FROM level n to n+1 - steeper curve for a longer grind. */
 export function xpToNextLevel(level: number): number {
   return 200 + (level - 1) * 120;
 }
@@ -324,7 +324,7 @@ export const INFINITE_WAVE_SIZE = 5;
 
 /**
  * Difficulty ladder for INFINITE mode. Each wave uses one difficulty band:
- * wave 1–2 EASY, 3–4 MEDIUM, 5–6 HARD, 7–8 EXPERT, 9+ MASTER.
+ * wave 1-2 EASY, 3-4 MEDIUM, 5-6 HARD, 7-8 EXPERT, 9+ MASTER.
  * Within a band the questions are that difficulty, so the mode "progressively
  * gets harder" the longer you survive.
  */

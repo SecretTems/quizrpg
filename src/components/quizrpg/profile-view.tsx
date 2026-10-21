@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Camera, Check, Loader2, LogOut, Pencil, Trash2 } from "lucide-react";
+import { Camera, Check, KeyRound, Loader2, LogOut, Pencil, ShieldOff, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
   AlertDialog,
@@ -23,6 +24,119 @@ import { uploadImage } from "@/lib/images";
 import { StatBar } from "@/components/quizrpg/bits";
 import { levelProgress } from "@/lib/game";
 import type { SafeUser } from "@/lib/types";
+
+/* ---------- 2FA setup card (admins / super admins) ---------- */
+
+function TwoFactorCard() {
+  const user = useAuth((s) => s.user);
+  const refreshUser = useAuth((s) => s.refresh);
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const [secret, setSecret] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+
+  if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) return null;
+
+  const startSetup = async () => {
+    setBusy(true);
+    try {
+      const data = await api<{ secret: string }>("/api/auth/2fa/setup", { method: "POST" });
+      setSecret(data.secret);
+    } catch (err: any) {
+      toast({ title: "2FA setup failed", description: err?.message || "Try again.", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmSetup = async () => {
+    setBusy(true);
+    try {
+      await api("/api/auth/2fa/setup", { method: "PATCH", body: JSON.stringify({ code }) });
+      setSecret(null);
+      setCode("");
+      await refreshUser();
+      toast({ title: "2FA enabled", description: "Your account now requires an authenticator code to sign in." });
+    } catch (err: any) {
+      toast({ title: "Verification failed", description: err?.message || "Invalid code.", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disable = async () => {
+    setBusy(true);
+    try {
+      await api("/api/auth/2fa/setup", { method: "DELETE" });
+      await refreshUser();
+      toast({ title: "2FA disabled" });
+    } catch (err: any) {
+      toast({ title: "Could not disable 2FA", description: err?.message || "Try again.", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Two-factor authentication</p>
+          <p className="text-xs text-muted-foreground">
+            {user.twoFactorEnabled
+              ? "Enabled - you are prompted for a 6-digit authenticator code when signing in."
+              : "Recommended for admin accounts. Generate a secret, add it to your authenticator app, then confirm a code."}
+          </p>
+        </div>
+
+        {!user.twoFactorEnabled && !secret && (
+          <Button className="gap-1.5" onClick={() => void startSetup()} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+            Set up 2FA
+          </Button>
+        )}
+
+        {secret && (
+          <div className="space-y-3">
+            <div>
+              <p className="mb-1 text-xs font-medium">1. Add this secret to your authenticator app (Google Authenticator, Authy, etc.):</p>
+              <code className="block max-w-full overflow-x-auto rounded bg-muted px-2 py-1.5 font-mono text-xs break-all select-all">
+                {secret}
+              </code>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="2fa-code">2. Enter the current 6-digit code</Label>
+              <Input
+                id="2fa-code"
+                inputMode="numeric"
+                placeholder="123456"
+                value={code}
+                maxLength={6}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button className="gap-1.5" onClick={() => void confirmSetup()} disabled={busy || code.length !== 6}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                Confirm & enable
+              </Button>
+              <Button variant="ghost" onClick={() => { setSecret(null); setCode(""); }} disabled={busy}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {user.twoFactorEnabled && (
+          <Button variant="outline" className="gap-1.5" onClick={() => void disable()} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldOff className="h-4 w-4" />}
+            Disable 2FA
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export function ProfileView({ onStatsChanged }: { onStatsChanged: () => void }) {
   const user = useAuth((s) => s.user);
@@ -195,7 +309,7 @@ export function ProfileView({ onStatsChanged }: { onStatsChanged: () => void }) 
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Battle Record</CardTitle>
-          <CardDescription>Progress persists across sessions — your legend is saved.</CardDescription>
+          <CardDescription>Progress persists across sessions - your legend is saved.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -227,6 +341,9 @@ export function ProfileView({ onStatsChanged }: { onStatsChanged: () => void }) 
           )}
         </CardContent>
       </Card>
+
+      {/* two-factor authentication (admins) */}
+      <TwoFactorCard />
 
       {/* danger zone */}
       <Card>

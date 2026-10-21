@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { motion } from "framer-motion";
-import { Swords, Loader2, LogIn, UserPlus, Sun, Moon } from "lucide-react";
+import { Eye, EyeOff, KeyRound, Mail, Swords, Loader2, LogIn, UserPlus, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
 import { api, useAuth } from "@/lib/store";
 import type { SafeUser } from "@/lib/types";
@@ -29,35 +31,225 @@ function ThemeToggle() {
   );
 }
 
+function PasswordInput({ id, name, value, onChange, required, placeholder, autoComplete, hint }: {
+  id: string;
+  name?: string;
+  value: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+  placeholder?: string;
+  autoComplete?: string;
+  hint?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>Password</Label>
+      <div className="relative">
+        <Input
+          id={id}
+          name={name}
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          required={required}
+          autoComplete={autoComplete}
+          placeholder={placeholder}
+          maxLength={72}
+          className="pr-10"
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-1"
+          onClick={() => setShow(!show)}
+          aria-label={show ? "Hide password" : "Show password"}
+        >
+          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </Button>
+      </div>
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
 export function AuthScreen() {
   const setUser = useAuth((s) => s.setUser);
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState<"login" | "register" | "otp">("login");
+  const [otpEmail, setOtpEmail] = useState("");
 
-  async function handleAuth(e: React.FormEvent<HTMLFormElement>, mode: "login" | "register") {
+  const [regForm, setRegForm] = useState({ username: "", email: "", displayName: "", password: "" });
+  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
+  const [totpCode, setTotpCode] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+
+  // forgot password flow
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotStep, setForgotStep] = useState<"email" | "otp" | "newpass">("email");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotCode, setForgotCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+
+  const handleLogin = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    const username = String(form.get("username") ?? "");
-    const password = String(form.get("password") ?? "");
-    const displayName = String(form.get("displayName") ?? "");
     setBusy(true);
     try {
-      const data = await api<{ user: SafeUser }>(`/api/auth/${mode}`, {
+      const data = await api<{ user: SafeUser; requires2FA?: boolean }>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify(mode === "login" ? { username, password } : { username, password, displayName }),
+        body: JSON.stringify(loginForm),
       });
       setUser(data.user);
-      toast({ title: mode === "login" ? "Welcome back!" : "Hero created!", description: `Glory awaits, ${data.user.displayName}.` });
-    } catch (err) {
-      toast({ title: "Access denied", description: err instanceof Error ? err.message : "Something went wrong.", variant: "destructive" });
+      toast({ title: "Welcome back!", description: `Glory awaits, ${data.user.displayName}.` });
+    } catch (err: any) {
+      if (err?.requires2FA) {
+        toast({ title: "2FA required", description: "Enter your authenticator code in the 2FA box and click Log in with 2FA.", variant: "destructive" });
+      } else if (err?.requiresEmailVerification) {
+        setOtpEmail(loginForm.username);
+        setOtpCode("");
+        setStep("otp");
+        toast({ title: "Verify your email", description: "Enter the code we emailed you, or request a new one.", variant: "destructive" });
+      } else {
+        toast({ title: "Access denied", description: err?.message || "Login failed.", variant: "destructive" });
+      }
     } finally {
       setBusy(false);
     }
-  }
+  }, [loginForm, setUser, toast]);
+
+  const handleTotpLogin = useCallback(async () => {
+    setBusy(true);
+    try {
+      const data = await api<{ user: SafeUser }>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ ...loginForm, totpCode }),
+      });
+      setUser(data.user);
+      setTotpCode("");
+      toast({ title: "Welcome back!", description: `Glory awaits, ${data.user.displayName}.` });
+    } catch (err: any) {
+      toast({ title: "2FA failed", description: err?.message || "Invalid code.", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }, [loginForm, totpCode, setUser, toast]);
+
+  const handleRegister = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api<{ user: SafeUser; requiresEmailVerification: boolean }>("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify(regForm),
+      });
+      setOtpEmail(regForm.email);
+      setOtpCode("");
+      setStep("otp");
+      toast({ title: "Hero created!", description: "Check your email for the verification code." });
+    } catch (err: any) {
+      toast({ title: "Registration failed", description: err?.message || "Something went wrong.", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }, [regForm, toast]);
+
+  const handleOtpVerify = useCallback(async () => {
+    setBusy(true);
+    try {
+      await api("/api/auth/verify-otp", {
+        method: "POST",
+        body: JSON.stringify({ email: otpEmail, code: otpCode, purpose: "verify" }),
+      });
+      const user = await api<SafeUser>("/api/auth/me");
+      setUser(user);
+      setOtpCode("");
+      setStep("login");
+      toast({ title: "Email verified!", description: "Welcome to the arena." });
+    } catch (err: any) {
+      toast({ title: "Verification failed", description: err?.message || "Invalid code.", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }, [otpEmail, otpCode, setUser, toast]);
+
+  const handleResendOtp = useCallback(async () => {
+    setBusy(true);
+    try {
+      await api("/api/auth/send-otp", {
+        method: "POST",
+        body: JSON.stringify({ email: otpEmail, purpose: "verify" }),
+      });
+      toast({ title: "Code sent", description: "A new verification code is on its way." });
+    } catch (err: any) {
+      toast({ title: "Resend failed", description: err?.message || "Could not resend code.", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }, [otpEmail, toast]);
+
+  /* ---------- forgot password flow ---------- */
+
+  const openForgot = useCallback(() => {
+    setForgotStep("email");
+    setForgotEmail("");
+    setForgotCode("");
+    setNewPassword("");
+    setShowForgot(true);
+  }, []);
+
+  const handleForgotEmail = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api("/api/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      setForgotStep("otp");
+      toast({ title: "Code sent", description: "If that email is registered, a reset code is on its way." });
+    } catch (err: any) {
+      toast({ title: "Request failed", description: err?.message || "Could not send reset code.", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }, [forgotEmail, toast]);
+
+  const handleForgotOtp = useCallback(async () => {
+    setBusy(true);
+    try {
+      await api("/api/auth/verify-otp", {
+        method: "POST",
+        body: JSON.stringify({ email: forgotEmail, code: forgotCode, purpose: "reset" }),
+      });
+      setForgotStep("newpass");
+    } catch (err: any) {
+      toast({ title: "Invalid code", description: err?.message || "Could not verify code.", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }, [forgotEmail, forgotCode, toast]);
+
+  const handleForgotReset = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api("/api/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify({ email: forgotEmail, code: forgotCode, password: newPassword }),
+      });
+      setShowForgot(false);
+      toast({ title: "Password reset", description: "Log in with your new password." });
+    } catch (err: any) {
+      toast({ title: "Reset failed", description: err?.message || "Could not reset password.", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }, [forgotEmail, forgotCode, newPassword, toast]);
 
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden px-4 py-10">
-      {/* ambient decorations */}
       <div className="pointer-events-none absolute inset-0 select-none" aria-hidden="true">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,oklch(0.78_0.14_75/0.12),transparent_60%)]" />
         <span className="absolute left-[8%] top-[18%] text-4xl opacity-20 animate-floaty">⚔️</span>
@@ -78,69 +270,251 @@ export function AuthScreen() {
       >
         <div className="text-center">
           <div className="mb-4 flex items-center justify-center gap-3">
-            <Swords className="h-9 w-9 text-primary animate-glow" aria-hidden="true" />
-            <h1 className="font-display text-2xl sm:text-3xl text-primary leading-relaxed">QUIZRPG</h1>
+            <Swords className="h-5 w-5" />
+            <h1 className="font-display text-3xl font-bold tracking-tight">QUIZRPG</h1>
           </div>
-          <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-            Turn your reviewers into battles. Answer questions, slay monsters, earn XP — and level up your learning.
+          <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed break-words">
+            Turn your reviewers into battles. Answer questions, slay monsters, earn XP - and level up your learning.
           </p>
         </div>
 
         <Card className="w-full panel-frame">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg text-center">Player Login</CardTitle>
-            <CardDescription className="text-center">Enter the arena or forge a new hero</CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Enter the arena</CardTitle>
+            <CardDescription>Log in, or forge a new hero.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="login">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="login" className="gap-1.5"><LogIn className="h-3.5 w-3.5" /> Login</TabsTrigger>
-                <TabsTrigger value="register" className="gap-1.5"><UserPlus className="h-3.5 w-3.5" /> Register</TabsTrigger>
+            <Tabs value={step} onValueChange={(v) => setStep(v as typeof step)} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="login">Log in</TabsTrigger>
+                <TabsTrigger value="register">Sign up</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="login">
-                <form onSubmit={(e) => handleAuth(e, "login")} className="space-y-3">
+              {/* LOG IN */}
+              <TabsContent value="login" className="mt-4">
+                <form className="space-y-4" onSubmit={handleLogin}>
                   <div className="space-y-1.5">
                     <Label htmlFor="login-username">Username</Label>
-                    <Input id="login-username" name="username" required autoComplete="username" placeholder="e.g. dragon_slayer" />
+                    <Input
+                      id="login-username"
+                      value={loginForm.username}
+                      onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+                      required
+                      maxLength={20}
+                      autoComplete="username"
+                    />
+                  </div>
+                  <PasswordInput
+                    id="login-password"
+                    value={loginForm.password}
+                    onChange={(v) => setLoginForm({ ...loginForm, password: v })}
+                    required
+                    autoComplete="current-password"
+                  />
+                  <Button type="submit" className="w-full gap-1.5" disabled={busy}>
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+                    Log in
+                  </Button>
+                  <button
+                    type="button"
+                    className="block w-full text-center text-xs text-muted-foreground underline-offset-2 hover:underline"
+                    onClick={openForgot}
+                  >
+                    Forgot your password?
+                  </button>
+                </form>
+
+                {/* 2FA prompt for admins / super admins */}
+                <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
+                  <Label htmlFor="totp-code" className="flex items-center gap-1.5">
+                    <KeyRound className="h-3.5 w-3.5" /> 2FA code (admins)
+                  </Label>
+                  <Input
+                    id="totp-code"
+                    inputMode="numeric"
+                    placeholder="123456"
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    maxLength={6}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full"
+                    disabled={busy || totpCode.length !== 6}
+                    onClick={() => void handleTotpLogin()}
+                  >
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                    Log in with 2FA
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground">
+                    Admins and super admins must enter a 6-digit code from their authenticator app after signing in.
+                  </p>
+                </div>
+              </TabsContent>
+
+              {/* SIGN UP */}
+              <TabsContent value="register" className="mt-4">
+                <form className="space-y-4" onSubmit={handleRegister}>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reg-username">Username</Label>
+                    <Input
+                      id="reg-username"
+                      value={regForm.username}
+                      onChange={(e) => setRegForm({ ...regForm, username: e.target.value })}
+                      required
+                      maxLength={20}
+                      pattern="[a-zA-Z0-9_]+"
+                      title="3-20 characters: letters, numbers, underscore"
+                      autoComplete="username"
+                    />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="login-password">Password</Label>
-                    <Input id="login-password" name="password" type="password" required autoComplete="current-password" placeholder="••••••••" />
+                    <Label htmlFor="reg-email">Email</Label>
+                    <Input
+                      id="reg-email"
+                      type="email"
+                      value={regForm.email}
+                      onChange={(e) => setRegForm({ ...regForm, email: e.target.value })}
+                      required
+                      maxLength={254}
+                      autoComplete="email"
+                    />
                   </div>
-                  <Button type="submit" className="w-full gap-2" disabled={busy}>
-                    {busy && <Loader2 className="h-4 w-4 animate-spin" />} Enter the Realm
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reg-display">
+                      Display name <span className="text-muted-foreground">(optional)</span>
+                    </Label>
+                    <Input
+                      id="reg-display"
+                      value={regForm.displayName}
+                      onChange={(e) => setRegForm({ ...regForm, displayName: e.target.value })}
+                      maxLength={30}
+                    />
+                  </div>
+                  <PasswordInput
+                    id="reg-password"
+                    value={regForm.password}
+                    onChange={(v) => setRegForm({ ...regForm, password: v })}
+                    required
+                    autoComplete="new-password"
+                    hint="At least 8 characters, 1 number, and 1 special character."
+                  />
+                  <Button type="submit" className="w-full gap-1.5" disabled={busy}>
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                    Create hero
                   </Button>
+                  <p className="text-[11px] text-muted-foreground">
+                    You&apos;ll be asked to verify your email with a 6-digit code before you can log in.
+                  </p>
                 </form>
               </TabsContent>
 
-              <TabsContent value="register">
-                <form onSubmit={(e) => handleAuth(e, "register")} className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reg-username">Username</Label>
-                    <Input id="reg-username" name="username" required pattern="[A-Za-z0-9_]{3,20}" title="3-20 letters, numbers or underscore" autoComplete="username" placeholder="3-20 characters" />
+              {/* EMAIL OTP VERIFICATION */}
+              <TabsContent value="otp" className="mt-4">
+                <div className="space-y-4">
+                  <div className="flex items-start gap-2 text-sm">
+                    <Mail className="h-4 w-4 shrink-0 mt-0.5" />
+                    <p className="min-w-0 break-words">
+                      Enter the 6-digit code sent to <span className="font-semibold break-all">{otpEmail}</span>.
+                    </p>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reg-display">Display Name <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                    <Input id="reg-display" name="displayName" placeholder="How your hero is known" />
+                  <div className="flex justify-center py-2">
+                    <InputOTP maxLength={6} value={otpCode} onChange={(v) => setOtpCode(v)}>
+                      <InputOTPGroup>
+                        {[0, 1, 2, 3, 4, 5].map((i) => (
+                          <InputOTPSlot key={i} index={i} />
+                        ))}
+                      </InputOTPGroup>
+                    </InputOTP>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reg-password">Password</Label>
-                    <Input id="reg-password" name="password" type="password" required minLength={6} autoComplete="new-password" placeholder="At least 6 characters" />
-                  </div>
-                  <Button type="submit" className="w-full gap-2" disabled={busy}>
-                    {busy && <Loader2 className="h-4 w-4 animate-spin" />} Create Hero
+                  <Button type="button" className="w-full" disabled={busy || otpCode.length !== 6} onClick={() => void handleOtpVerify()}>
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Verify email
                   </Button>
-                </form>
+                  <Button type="button" variant="ghost" className="w-full text-xs" disabled={busy} onClick={() => void handleResendOtp()}>
+                    Resend code
+                  </Button>
+                </div>
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
-
-        <p className="text-xs text-muted-foreground text-center max-w-sm leading-relaxed">
-          Built for students who want studying to feel like an adventure — battle monsters with Math, Science, History, English & Programming.
-        </p>
       </motion.div>
+
+      {/* FORGOT PASSWORD MODAL */}
+      <Dialog open={showForgot} onOpenChange={setShowForgot}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Reset your password</DialogTitle>
+            <DialogDescription>
+              {forgotStep === "email" && "Enter the email on your account and we'll send a 6-digit reset code."}
+              {forgotStep === "otp" && "Enter the 6-digit code we emailed you."}
+              {forgotStep === "newpass" && "Choose a new password for your account."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {forgotStep === "email" && (
+            <form className="space-y-4" onSubmit={handleForgotEmail}>
+              <div className="space-y-1.5">
+                <Label htmlFor="forgot-email">Email</Label>
+                <Input
+                  id="forgot-email"
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  required
+                  maxLength={254}
+                  autoComplete="email"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="submit" className="w-full gap-1.5" disabled={busy}>
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                  Send reset code
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+
+          {forgotStep === "otp" && (
+            <div className="space-y-4">
+              <div className="flex justify-center py-2">
+                <InputOTP maxLength={6} value={forgotCode} onChange={(v) => setForgotCode(v)}>
+                  <InputOTPGroup>
+                    {[0, 1, 2, 3, 4, 5].map((i) => (
+                      <InputOTPSlot key={i} index={i} />
+                    ))}
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+              <Button type="button" className="w-full" disabled={busy || forgotCode.length !== 6} onClick={() => void handleForgotOtp()}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Verify code
+              </Button>
+            </div>
+          )}
+
+          {forgotStep === "newpass" && (
+            <form className="space-y-4" onSubmit={handleForgotReset}>
+              <PasswordInput
+                id="forgot-new-password"
+                value={newPassword}
+                onChange={(v) => setNewPassword(v)}
+                required
+                autoComplete="new-password"
+                hint="At least 8 characters, 1 number, and 1 special character."
+              />
+              <DialogFooter>
+                <Button type="submit" className="w-full gap-1.5" disabled={busy}>
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                  Reset password
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

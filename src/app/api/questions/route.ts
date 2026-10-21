@@ -76,7 +76,7 @@ export async function GET(req: Request) {
 
 /**
  * POST a question.
- * Staff: creates OFFICIAL bank content directly (no approval) — or a personal
+ * Staff: creates OFFICIAL bank content directly (no approval) - or a personal
  * custom question if `personal: true`.
  * Players: creates their own CUSTOM question, or submits it for approval
  * (`submitForReview: true`) so an admin can make it OFFICIAL.

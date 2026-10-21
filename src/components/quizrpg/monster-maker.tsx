@@ -196,7 +196,7 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
         <div className="min-w-0 flex-1">
           <h3 className="font-display text-base">👾 Monster Maker</h3>
           <p className="text-sm text-muted-foreground">
-            Design each category&apos;s monster lineup — they are fought in order, one after another.
+            Design each category's monster lineup - they are fought in order, one after another.
           </p>
         </div>
         <Button className="gap-1.5" disabled={!cat || busy} onClick={openCreate}>
@@ -259,7 +259,7 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{m.name}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    ❤️ {m.hp} HP · ⚔️ {m.atkMin}–{m.atkMax} ATK · 📚{" "}
+                    ❤️ {m.hp} HP · ⚔️ {m.atkMin}-{m.atkMax} ATK · 📚{" "}
                     {m.subjects.length ? m.subjects.join(" · ") : "category subjects"}
                   </p>
                 </div>
@@ -335,7 +335,7 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
           <DialogHeader>
             <DialogTitle>{editIndex === null ? "New monster" : "Edit monster"}</DialogTitle>
             <DialogDescription>
-              Monsters fight in the order shown — the first one opens the battle.
+              Monsters fight in the order shown - the first one opens the battle.
             </DialogDescription>
           </DialogHeader>
 
@@ -417,6 +417,7 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
                 value={form.subjects}
                 onChange={(e) => setForm({ ...form, subjects: e.target.value })}
                 placeholder="English, History (comma separated)"
+                maxLength={200}
               />
               <p className="text-[11px] text-muted-foreground">
                 The battle draws this monster&apos;s questions from these subjects. Leave blank to use the

@@ -100,7 +100,7 @@ export function AdminView() {
   };
 
   useEffect(() => {
-    loadCategories();
+    void Promise.resolve().then(() => loadCategories());
   }, []);
 
   useEffect(() => {
@@ -193,7 +193,7 @@ export function AdminView() {
         ))}
       </div>
 
-      {/* category approvals — creation lives in the Bank's Category Maker */}
+      {/* category approvals - creation lives in the Bank's Category Maker */}
       <Card>
         <CardHeader>
           <CardTitle>Category approvals</CardTitle>

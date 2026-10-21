@@ -63,7 +63,7 @@ export async function drawWave(
     subjectList.length === 0 ? pool : pool.filter((q) => subjectList.includes(q.subject));
   const wanted = subjectPool.filter((q) => q.difficulty === difficulty).length;
   if (subjectPool.length < wanted) {
-    // not enough in this subject — mix in official questions from other subjects
+    // not enough in this subject - mix in official questions from other subjects
     subjectPool = [
       ...subjectPool,
       ...pool.filter((q) => q.status === "OFFICIAL" && !subjectList.includes(q.subject)),
@@ -75,10 +75,10 @@ export async function drawWave(
   let allowRepeats = false;
 
   for (let i = 0; i < wanted; i++) {
-    // draw ONLY from the requested difficulty — never fall back to another
+    // draw ONLY from the requested difficulty - never fall back to another
     let candidates = subjectPool.filter((q) => q.difficulty === difficulty && !used.has(q.id));
     if (candidates.length === 0 && allowRepeats) {
-      // bank exhausted of fresh questions — allow repeats within this difficulty
+      // bank exhausted of fresh questions - allow repeats within this difficulty
       candidates = subjectPool.filter((q) => q.difficulty === difficulty);
     }
     if (candidates.length === 0 && !allowRepeats) {

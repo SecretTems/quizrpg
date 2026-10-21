@@ -39,7 +39,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   const [tier, setTier] = useState<number>(1);
   const [mode, setMode] = useState<BattleModeId>("EASY");
   const [categories, setCategories] = useState<NormalizedCategory[]>([]);
-  /** selected DB Adventure category opponent — overrides the static tier roster */
+  /** selected DB Adventure category opponent - overrides the static tier roster */
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleStateDTO | null>(null);
   const [resumable, setResumable] = useState<BattleStateDTO | null>(null);
@@ -59,7 +59,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
 
   /**
    * Re-fetch the full profile snapshot (gold/gems/backpack/equipment) that the
-   * Shop, Gacha and Equipment dialogs render — the auth store copy doesn't
+   * Shop, Gacha and Equipment dialogs render - the auth store copy doesn't
    * carry those fields, so the dialogs need this after every wallet change.
    */
   const refreshProfile = useCallback(async () => {
@@ -182,7 +182,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold">An unfinished battle awaits</p>
                 <p className="text-xs text-muted-foreground">
-                  {resumable.enemySprite} {resumable.enemyName} — your HP {resumable.playerHp}/{resumable.playerMaxHp}, enemy HP {resumable.enemyHp}/{resumable.enemyMaxHp}
+                  {resumable.enemySprite} {resumable.enemyName} - your HP {resumable.playerHp}/{resumable.playerMaxHp}, enemy HP {resumable.enemyHp}/{resumable.enemyMaxHp}
                 </p>
               </div>
               <Button size="sm" className="gap-1.5" onClick={() => { setBattle(resumable); setResumable(null); }}>
@@ -207,18 +207,18 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
       <div>
         <h2 className="font-display text-lg">⚔️ Adventure</h2>
         <p className="text-sm text-muted-foreground">
-          Pick a subject and an opponent. Every correct answer strikes the enemy — wrong answers let it strike you.
+          Pick a subject and an opponent. Every correct answer strikes the enemy - wrong answers let it strike you.
         </p>
       </div>
 
-      {/* step 1 — subject */}
+      {/* step 1 - subject */}
       <Dialog open={showPlayModal} onOpenChange={setShowPlayModal}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Play className="h-5 w-5" /> Start an Adventure
             </DialogTitle>
-            <DialogDescription>Choose your subject, difficulty, and opponent — then dive in.</DialogDescription>
+            <DialogDescription>Choose your subject, difficulty, and opponent - then dive in.</DialogDescription>
           </DialogHeader>
 
       <Card className="panel-frame">
@@ -252,13 +252,13 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
           ))}
           {subjects.length === 0 && (
             <p className="text-xs text-muted-foreground">
-              No subjects available yet — add questions in the Question Bank, or use All Subjects once the admin seeds the bank.
+               No subjects available yet - add questions in the Question Bank, or use All Subjects once the admin seeds the bank.
             </p>
           )}
         </CardContent>
       </Card>
 
-      {/* step 2 — difficulty / battle mode */}
+      {/* step 2 - difficulty / battle mode */}
       <Card className="panel-frame">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">2 · Choose your difficulty</CardTitle>
@@ -300,12 +300,12 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
         </CardContent>
       </Card>
 
-      {/* step 3 — opponent, grouped by category */}
+      {/* step 3 - opponent, grouped by category */}
       <Card className="panel-frame">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">3 · Choose your opponent</CardTitle>
           <CardDescription>
-            Opponents are grouped by category — grade level or subject focus. Adventure Categories fight from their own subject pools; new tiers unlock as you level up.
+            Opponents are grouped by category - grade level or subject focus. Adventure Categories fight from their own subject pools; new tiers unlock as you level up.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -345,7 +345,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                       <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">{t.blurb}</span>
                       <span className="mt-2 flex flex-wrap gap-1 text-[10px] font-bold">
                         <span className="rounded bg-red-600/15 px-1.5 py-0.5 text-red-600 dark:text-red-400">HP {t.maxHp}</span>
-                        <span className="rounded bg-orange-600/15 px-1.5 py-0.5 text-orange-600 dark:text-orange-400">ATK {t.atkMin}–{t.atkMax}</span>
+                        <span className="rounded bg-orange-600/15 px-1.5 py-0.5 text-orange-600 dark:text-orange-400">ATK {t.atkMin}-{t.atkMax}</span>
                       </span>
                     </button>
                   );
@@ -354,7 +354,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
             </div>
           ))}
 
-          {/* DB Adventure categories — monsters defined by admin-approved categories */}
+          {/* DB Adventure categories - monsters defined by admin-approved categories */}
           {categories.length > 0 && (
             <div>
               <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">🌍 Adventure Categories</p>
@@ -399,12 +399,12 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                           <>
                             <span className="rounded bg-purple-600/15 px-1.5 py-0.5 text-purple-600 dark:text-purple-400">👾 ×{c.monsters!.length}</span>
                             <span className="rounded bg-red-600/15 px-1.5 py-0.5 text-red-600 dark:text-red-400">HP {c.monsters![0].hp}</span>
-                            <span className="rounded bg-orange-600/15 px-1.5 py-0.5 text-orange-600 dark:text-orange-400">ATK {c.monsters![0].atkMin}–{c.monsters![0].atkMax}</span>
+                            <span className="rounded bg-orange-600/15 px-1.5 py-0.5 text-orange-600 dark:text-orange-400">ATK {c.monsters![0].atkMin}-{c.monsters![0].atkMax}</span>
                           </>
                         ) : (
                           <>
                             <span className="rounded bg-red-600/15 px-1.5 py-0.5 text-red-600 dark:text-red-400">HP {c.enemy.baseHp}</span>
-                            <span className="rounded bg-orange-600/15 px-1.5 py-0.5 text-orange-600 dark:text-orange-400">ATK {c.enemy.atkMin}–{c.enemy.atkMax}</span>
+                            <span className="rounded bg-orange-600/15 px-1.5 py-0.5 text-orange-600 dark:text-orange-400">ATK {c.enemy.atkMin}-{c.enemy.atkMax}</span>
                           </>
                         )}
                       </span>
@@ -439,7 +439,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
           <span className="min-w-0 flex-1">
             <span className="block font-display text-2xl leading-tight">Play</span>
             <span className="mt-1 block text-sm font-normal opacity-90">
-              Pick a subject, difficulty, and opponent — then battle it out.
+              Pick a subject, difficulty, and opponent - then battle it out.
             </span>
           </span>
         </Button>

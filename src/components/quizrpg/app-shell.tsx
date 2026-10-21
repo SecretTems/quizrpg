@@ -33,7 +33,9 @@ export function AppShell() {
   // Auto-show the tutorial once for brand-new players, then never again.
   // (must run before the early return so the hook order stays stable)
   useEffect(() => {
-    if (user && !user.tutorialSeen) setTutorialOpen(true);
+    if (user && !user.tutorialSeen) {
+      void Promise.resolve().then(() => setTutorialOpen(true));
+    }
   }, [user]);
 
   if (!user) return null;
@@ -140,7 +142,7 @@ export function AppShell() {
       {/* footer sticks to bottom */}
       <footer className="mt-auto border-t border-border">
         <div className="mx-auto max-w-5xl px-4 py-3 text-center text-xs text-muted-foreground">
-          QUIZRPG — An Interactive Gaming Quiz System for Enhancing Student Learning and Engagement
+          QUIZRPG - An Interactive Gaming Quiz System for Enhancing Student Learning and Engagement
         </div>
       </footer>
     </div>

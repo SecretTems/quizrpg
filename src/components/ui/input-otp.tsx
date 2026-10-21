@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import * as React from "react"
 import { OTPInput, OTPInputContext } from "input-otp"
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 function InputOTP({
   className,
   containerClassName,
+  children,
   ...props
 }: React.ComponentProps<typeof OTPInput> & {
   containerClassName?: string
@@ -21,8 +22,10 @@ function InputOTP({
         containerClassName
       )}
       className={cn("disabled:cursor-not-allowed", className)}
-      {...props}
-    />
+      {...(props as any)}
+    >
+      {children as any}
+    </OTPInput>
   )
 }
 

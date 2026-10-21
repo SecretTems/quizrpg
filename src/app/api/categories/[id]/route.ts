@@ -78,7 +78,7 @@ export async function PUT(req: Request, { params }: Params) {
   if (typeof body.status === "string") {
     // Only admins may promote a category to OFFICIAL; keep isOfficial in sync.
     if (body.status === "OFFICIAL" && !staff) {
-      // players cannot self-promote — ignore the status change
+      // players cannot self-promote - ignore the status change
     } else if (["OFFICIAL", "CUSTOM", "PENDING", "REJECTED"].includes(body.status)) {
       update.status = body.status;
       if (staff) update.isOfficial = body.status === "OFFICIAL";

@@ -11,7 +11,7 @@ export interface MonsterInput {
 }
 
 const IMAGE_RE = /^data:image\/(png|jpeg|webp|gif);base64,/;
-/** base64 data URL cap — matches /api/upload (200 KB binary ≈ 267 K chars + overhead) */
+/** base64 data URL cap - matches /api/upload (200 KB binary ≈ 267 K chars + overhead) */
 const MAX_IMAGE_CHARS = 400_000;
 export const MAX_MONSTERS = 20;
 

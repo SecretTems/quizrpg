@@ -31,7 +31,7 @@ export async function PATCH(req: Request) {
       update.avatar = ""; // explicit clear → back to the default emoji
     } else if (!IMAGE_RE.test(avatar) || avatar.length > MAX_IMAGE_CHARS) {
       return NextResponse.json(
-        { error: "Avatar image is invalid or too large — upload it through /api/upload." },
+        { error: "Avatar image is invalid or too large - upload it through /api/upload." },
         { status: 400 },
       );
     } else {

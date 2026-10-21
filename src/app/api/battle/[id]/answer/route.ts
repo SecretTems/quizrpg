@@ -39,21 +39,21 @@ export async function POST(req: Request, { params }: Params) {
   }
   const question = normalizeQuestion(qDoc);
 
-  // category opponents snapshot their own attack range on the battle — use it
+  // category opponents snapshot their own attack range on the battle - use it
   // instead of the static tier roster's stats
   const baseTier = getTier(battleDoc.tier);
   const tier: EnemyTier =
     battleDoc.enemyAtkMin != null && battleDoc.enemyAtkMax != null
       ? { ...baseTier, atkMin: battleDoc.enemyAtkMin, atkMax: battleDoc.enemyAtkMax }
       : baseTier;
-  // category battles carry a monster lineup — track where we are in it
+  // category battles carry a monster lineup - track where we are in it
   const monsters: BattleMonster[] = (battleDoc.monsters ?? []) as BattleMonster[];
   const currentMonsterIndex = battleDoc.monsterIndex ?? 0;
   let nextMonsterIndex: number | null = null;
   const wasCorrect = choiceIndex === question.correctIndex;
 
   // user-made (custom/pending) questions are practice-only: no damage, no XP,
-  // no score and no stats — they don't affect the battle either way
+  // no score and no stats - they don't affect the battle either way
   const isCustom = question.status !== "OFFICIAL";
   const outcome = isCustom
     ? {
@@ -78,7 +78,7 @@ export async function POST(req: Request, { params }: Params) {
   const xpBefore = levelProgress(user.xp).level;
 
   // XP accrues immediately so progress persists even mid-battle.
-  // Custom (user-made) questions are practice-only — no XP and no streak stats.
+  // Custom (user-made) questions are practice-only - no XP and no streak stats.
   if (!isCustom) {
     await User.updateOne({ _id: user.id }, { $inc: { xp: outcome.xpGained } });
     if (streak > user.bestStreak) {
@@ -94,7 +94,7 @@ export async function POST(req: Request, { params }: Params) {
   const mode = getMode(battleDoc.mode as BattleModeId);
 
   if (mode.infinite) {
-    // INFINITE: no single victory — each cleared wave pays a bonus, enemy HP
+     // INFINITE: no single victory - each cleared wave pays a bonus, enemy HP
     // partially refills, and the next wave is harder
     const isWaveEnd = battleDoc.cursor + 1 >= ids.length;
     if (isWaveEnd && enemyHp > 0 && playerHp > 0) {
@@ -109,7 +109,7 @@ export async function POST(req: Request, { params }: Params) {
 
   } else if (enemyHp <= 0) {
     if (monsters.length > 0 && currentMonsterIndex < monsters.length - 1) {
-      // this monster fell — the next one in the category's lineup steps in
+      // this monster fell - the next one in the category's lineup steps in
       const nextIndex = currentMonsterIndex + 1;
       nextMonsterIndex = nextIndex;
       enemyHp = monsters[nextIndex].hp;
@@ -189,7 +189,7 @@ export async function POST(req: Request, { params }: Params) {
       }
     }
     if (cursor >= allIds.length) {
-      // wave exhausted — INFINITE mode pulls a fresh, harder wave from the pool;
+      // wave exhausted - INFINITE mode pulls a fresh, harder wave from the pool;
       // standard modes end the battle unless the pool had leftover questions
       const nextWave = battleDoc.wave + 1;
       const wave = await drawWave(

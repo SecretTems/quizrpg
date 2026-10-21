@@ -6,7 +6,7 @@ import { getSessionUser } from "@/lib/auth";
  *
  * The client downscales pictures (profile / category / monster art) to 128 px
  * and sends them as a base64 data URL; this route validates the MIME type and
- * size cap before the caller stores the string on its document — keeping every
+ * size cap before the caller stores the string on its document - keeping every
  * custom image small and consistent so the database stays light.
  */
 const KINDS = ["avatar", "category", "monster"] as const;
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   }
   if (dataUrlBytes(data) > MAX_UPLOAD_BYTES) {
     return NextResponse.json(
-      { error: `Image too large — max ${Math.round(MAX_UPLOAD_BYTES / 1000)} KB after downscaling.` },
+       { error: `Image too large - max ${Math.round(MAX_UPLOAD_BYTES / 1000)} KB after downscaling.` },
       { status: 400 },
     );
   }

@@ -52,7 +52,7 @@ const RING_BY_RARITY: Record<string, string> = {
   COMMON: "border-border",
 };
 
-/** Square art tile for an item — custom image when present, slot emoji otherwise. */
+/** Square art tile for an item - custom image when present, slot emoji otherwise. */
 function ItemTile({ itemId, className }: { itemId: string; className?: string }) {
   const def = itemById(itemId);
   if (def?.image) {
@@ -109,7 +109,7 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
     }
   }
 
-  /** Equip button under an Inventory item — goes to the slot its type belongs to. */
+  /** Equip button under an Inventory item - goes to the slot its type belongs to. */
   function equipFromBackpack(itemId: string) {
     const def = itemById(itemId);
     if (!def) return;
@@ -120,7 +120,7 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
     void act({ action: "equip", itemId, slot: def.slot }, `Equipped ${def.name}.`);
   }
 
-  /** Equip button on an empty slot — uses the Storage selection with a type check. */
+  /** Equip button on an empty slot - uses the Storage selection with a type check. */
   function equipSelectedInto(slot: Slot) {
     if (!selected || !selectedDef) {
       setMessage({ kind: "error", text: "Select an item in Storage first, then click Equip." });
@@ -152,7 +152,7 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
         <DialogHeader>
           <DialogTitle>Equipment</DialogTitle>
           <DialogDescription>
-            Select an item in Storage, then click Equip on a slot — or equip straight from your Inventory.
+            Select an item in Storage, then click Equip on a slot - or equip straight from your Inventory.
           </DialogDescription>
         </DialogHeader>
 
@@ -214,7 +214,7 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
               <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Inventory</h4>
               {inventoryItems.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border/60 p-3 text-xs text-muted-foreground">
-                  No gear in your backpack — visit the Shop or Gacha.
+                  No gear in your backpack - visit the Shop or Gacha.
                 </p>
               ) : (
                 <div className="grid grid-cols-3 gap-2">
@@ -390,7 +390,7 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
         </div>
 
         <DialogDescription className="text-xs">
-          Equipped gear boosts your battle stats. Storage holds up to 100 items — discard what you don&apos;t need.
+          Equipped gear boosts your battle stats. Storage holds up to 100 items - discard what you don't need.
         </DialogDescription>
       </DialogContent>
     </Dialog>

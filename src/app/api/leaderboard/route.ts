@@ -25,7 +25,7 @@ export async function GET() {
 
   await connectDB();
   const [byScoreDocs, byXpDocs, totalPlayers] = await Promise.all([
-    // (super)admins are staff, not competitors — excluded from all boards
+    // (super)admins are staff, not competitors - excluded from all boards
     User.find({ role: "PLAYER" }).sort({ bestScore: -1, xp: -1 }).limit(15).lean(),
     User.find({ role: "PLAYER" }).sort({ xp: -1, bestScore: -1 }).limit(15).lean(),
     User.countDocuments({ role: "PLAYER" }),

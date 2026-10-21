@@ -6,7 +6,7 @@ import { getSessionUser } from "@/lib/auth";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** Retreat from an ongoing battle — keeps XP earned so far, no victory bonus. */
+/** Retreat from an ongoing battle - keeps XP earned so far, no victory bonus. */
 export async function POST(_req: Request, { params }: Params) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });

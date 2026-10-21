@@ -8,6 +8,8 @@ export interface SafeUser {
   displayName: string;
   /** custom profile picture (data URL) when set */
   avatar?: string;
+  email: string;
+  emailVerified: boolean;
   role: string;
   xp: number;
   battlesWon: number;
@@ -16,6 +18,8 @@ export interface SafeUser {
   bestStreak: number;
   /** true once the onboarding tutorial has been completed */
   tutorialSeen: boolean;
+  /** 2FA is enabled for this account (admins/super admins) */
+  twoFactorEnabled: boolean;
   createdAt: string;
 }
 
@@ -103,7 +107,7 @@ export interface AnswerResultDTO {
   gemDrop: number;
   /** true when a category monster fell and the next one in the lineup stepped in */
   monsterDefeated: boolean;
-  /** updated enemy info — present when the lineup advanced mid-battle */
+  /** updated enemy info - present when the lineup advanced mid-battle */
   enemyName?: string;
   enemySprite?: string;
   enemyImage?: string | null;

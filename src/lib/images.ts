@@ -35,14 +35,14 @@ export function fileToDataUrl(file: File, maxDim = MAX_IMAGE_DIM): Promise<strin
         ctx.drawImage(img, 0, 0, w, h);
         let data = canvas.toDataURL("image/png");
         if (dataUrlBytes(data) > MAX_UPLOAD_BYTES) {
-          // photographs compress far better as JPEG — flatten onto white
+          // photographs compress far better as JPEG - flatten onto white
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, w, h);
           ctx.drawImage(img, 0, 0, w, h);
           data = canvas.toDataURL("image/jpeg", 0.85);
         }
         if (dataUrlBytes(data) > MAX_UPLOAD_BYTES) {
-          throw new Error("That image is still too large — try a smaller file.");
+          throw new Error("That image is still too large - try a smaller file.");
         }
         resolve(data);
       } catch (err) {

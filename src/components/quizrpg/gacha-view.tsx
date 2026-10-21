@@ -75,7 +75,7 @@ export function GachaView({ open, onOpenChange, user, onRefresh }: GachaViewProp
         disabled={(user?.gems ?? 0) < 3}
         onClick={pull}
       >
-        Pull — 3 Gems
+        Pull - 3 Gems
       </Button>
       {pullResult && (
         <Card className="mt-4 panel-frame">

@@ -1,6 +1,6 @@
-# ⚔️ QUIZRPG — Learn, Battle, Level Up
+# ⚔️ QUIZRPG - Learn, Battle, Level Up
 
-An interactive, gamified quiz system that turns passive revision into active, game-based learning. Students answer subject questions to attack monsters, build streaks, land critical hits, earn XP, level up, and unlock progressively harder enemies — with all progress persisted in **MongoDB**.
+An interactive, gamified quiz system that turns passive revision into active, game-based learning. Students answer subject questions to attack monsters, build streaks, land critical hits, earn XP, level up, and unlock progressively harder enemies - with all progress persisted in **MongoDB**.
 
 Built with **Next.js (App Router) + React + TypeScript + Tailwind CSS + MongoDB (Mongoose)**.
 
@@ -8,27 +8,27 @@ Built with **Next.js (App Router) + React + TypeScript + Tailwind CSS + MongoDB 
 
 ## Features
 
-- ⚔️ **Battle system** — server-authoritative combat: damage scales with question difficulty and answer streaks, with critical hits on 3+ streaks. Animated HP bars, floating damage numbers, screen shake, 30s question timer.
-- 🧠 **Question bank manager** — create / edit / delete questions per subject & difficulty. Players manage their own bank; admins also manage the global bank used by everyone.
-- 📈 **Level system** — earn XP per correct answer and victory bonus; level-ups unlock higher enemy tiers (Slime Scholar → Rune Golem → Cipher Wraith → Quiz Dragon).
-- 🏆 **Leaderboard** — Top Scores and Top XP boards, persisted across sessions.
-- 💾 **Save / resume** — an unfinished battle is stored server-side; log back in and continue exactly where you left off. Lifetime stats (wins, losses, best score, best streak) persist too.
-- 👥 **Accounts** — player and admin roles. Admins get global bank management, user management (promote / demote / delete with cascade) and platform stats.
-- 🌗 **Light & dark mode** — parchment (light) and dungeon (dark) themes, pixel-retro UI with smooth animations.
+- ⚔️ **Battle system** - server-authoritative combat: damage scales with question difficulty and answer streaks, with critical hits on 3+ streaks. Animated HP bars, floating damage numbers, screen shake, 30s question timer.
+- 🧠 **Question bank manager** - create / edit / delete questions per subject & difficulty. Players manage their own bank; admins also manage the global bank used by everyone.
+- 📈 **Level system** - earn XP per correct answer and victory bonus; level-ups unlock higher enemy tiers (Slime Scholar → Rune Golem → Cipher Wraith → Quiz Dragon).
+- 🏆 **Leaderboard** - Top Scores and Top XP boards, persisted across sessions.
+- 💾 **Save / resume** - an unfinished battle is stored server-side; log back in and continue exactly where you left off. Lifetime stats (wins, losses, best score, best streak) persist too.
+- 👥 **Accounts** - player and admin roles. Admins get global bank management, user management (promote / demote / delete with cascade) and platform stats.
+- 🌗 **Light & dark mode** - parchment (light) and dungeon (dark) themes, pixel-retro UI with smooth animations.
 
 ## Quick start
 
-### Option A — zero config (in-memory MongoDB)
+### Option A - zero config (in-memory MongoDB)
 
-No MongoDB installation needed. Data is **ephemeral** (wiped on stop) — great for a quick look:
+No MongoDB installation needed. Data is **ephemeral** (wiped on stop) - great for a quick look:
 
 ```bash
 npm install        # or: bun install
 npm run dev:memory
-# open http://localhost:3000 — demo accounts are seeded automatically
+# open http://localhost:3000 - demo accounts are seeded automatically
 ```
 
-### Option B — real local MongoDB (persistent)
+### Option B - real local MongoDB (persistent)
 
 Requires Node.js **20.6+** and a running MongoDB instance (default port 27017).
 
@@ -38,7 +38,7 @@ npm run seed       # creates demo accounts + 45 starter questions
 npm run dev        # open http://localhost:3000
 ```
 
-### Option C — MongoDB Atlas (free cloud database)
+### Option C - MongoDB Atlas (free cloud database)
 
 1. Create a free cluster at [mongodb.com/atlas](https://www.mongodb.com/atlas) and get your connection string.
 2. Put it in `.env`:
@@ -63,15 +63,39 @@ SESSION_SECRET=any-long-random-string
 # MongoDB connection string (local or Atlas)
 MONGODB_URI=mongodb://127.0.0.1:27017/quizrpg
 
-# Secret used to sign session cookies — set your own random value in production
+# Secret used to sign session cookies - set your own random value in production
 SESSION_SECRET=change-me-to-a-long-random-string
+
+# SMTP email settings - used to send OTP codes for email verification and password resets
+# Leave SMTP_HOST/SMTP_USER/SMTP_PASS empty to print the 6-digit codes to the server console instead
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=you@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=QUIZRPG <no-reply@example.com>
 ```
 
 The project ships with a working `.env`. Change `SESSION_SECRET` before deploying.
 
+### Setting up email for OTP codes
+
+Sign-up requires a 6-digit email verification code, and "Forgot password" emails a reset code. Both are sent over SMTP (`src/lib/auth.ts` > `sendOtpEmail`).
+
+1. Create an email account to send from. Easiest options:
+   - **Gmail**: enable 2FA on the account, then create an **App Password** (Google Account > Security > App passwords). Use that 16-character app password as `SMTP_PASS` - your normal password will NOT work.
+   - **Outlook/Microsoft 365**: use `smtp.office365.com`, port `587`.
+   - **A transactional service** (Brevo, SendGrid, Mailgun, Resend) - create an SMTP credential and use the host/port/user/pass they give you. This is the best choice for production since Gmail has low daily send limits.
+2. Fill `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` in `.env` (or your host's environment variables).
+   - For Gmail: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_SECURE=false` (port 465 would need `SMTP_SECURE=true`).
+3. Set `SMTP_FROM` to something like `QUIZRPG <you@gmail.com>`. Some providers require the From address to match the sending account.
+4. Restart the dev server and sign up with your own email - the code should arrive in about a minute.
+
+If SMTP is not configured, the codes are printed to the server terminal as `[OTP] ... code for you@example.com: 123456`, which is handy for local development.
+
 ## Game math (server-authoritative)
 
-All combat outcomes are computed on the server (`src/lib/game.ts`) — the client only renders state.
+All combat outcomes are computed on the server (`src/lib/game.ts`) - the client only renders state.
 
 | Mechanic | Rule |
 | -------- | ---- |
@@ -87,12 +111,12 @@ All combat outcomes are computed on the server (`src/lib/game.ts`) — the clien
 
 | Tier | Enemy | Unlock | HP | ATK | Victory reward |
 | ---- | ----- | ------ | -- | --- | -------------- |
-| 1 | Slime Scholar | Lv 1 | 60 | 6–9 | 40 XP / 100 pts |
-| 2 | Rune Golem | Lv 3 | 100 | 10–14 | 90 XP / 220 pts |
-| 3 | Cipher Wraith | Lv 5 | 150 | 13–18 | 150 XP / 360 pts |
-| 4 | Quiz Dragon | Lv 8 | 220 | 17–23 | 240 XP / 550 pts |
+| 1 | Slime Scholar | Lv 1 | 60 | 6-9 | 40 XP / 100 pts |
+| 2 | Rune Golem | Lv 3 | 100 | 10-14 | 90 XP / 220 pts |
+| 3 | Cipher Wraith | Lv 5 | 150 | 13-18 | 150 XP / 360 pts |
+| 4 | Quiz Dragon | Lv 8 | 220 | 17-23 | 240 XP / 550 pts |
 
-Each battle is a 10-question wave (plus follow-up waves if the enemy survives). Difficulty mix scales with tier — from 60% EASY at Tier 1 to 50% HARD at Tier 4.
+Each battle is a 10-question wave (plus follow-up waves if the enemy survives). Difficulty mix scales with tier - from 60% EASY at Tier 1 to 50% HARD at Tier 4.
 
 ## Project structure
 
@@ -123,7 +147,7 @@ scripts/
 | `battles` | full save/resume state: HP, streak, score, xpEarned, question ids, cursor, monster lineup, status |
 | `categories` | Adventure categories: name, icon, subjects, ordered monster lineup, owner + approval status (CUSTOM → PENDING → OFFICIAL) |
 
-> Equipment & consumable **items** are not a collection — they're static data in `src/lib/adventure-data.ts`
+> Equipment & consumable **items** are not a collection - they're static data in `src/lib/adventure-data.ts`
 > (see *Adding item images* below).
 
 ## Scripts
@@ -138,13 +162,13 @@ scripts/
 
 ## Deployment notes
 
-This app has **server-side logic** (auth cookies, server-authoritative combat, MongoDB access), so it needs a Node.js host — e.g. **Vercel**, Render, Railway, Fly.io, or any VPS:
+This app has **server-side logic** (auth cookies, server-authoritative combat, MongoDB access), so it needs a Node.js host - e.g. **Vercel**, Render, Railway, Fly.io, or any VPS:
 
 1. Provision MongoDB (Atlas free tier works great) and set `MONGODB_URI` + a strong `SESSION_SECRET` in the host's environment variables.
 2. `npm run build && npm start` (or let the platform run the build).
 3. Run `npm run seed` once against the production database.
 
-> **Why not GitHub Pages?** GitHub Pages serves static files only — it cannot run the API routes, authentication, or MongoDB access this game relies on. The front end alone (static export) would have no server to validate answers or persist progress. If you specifically need static hosting, you'd have to split the project: static front end + a separately hosted API (e.g. Vercel serverless) + Atlas — the data layer here (Mongoose models + REST routes) is already structured to support that split.
+> **Why not GitHub Pages?** GitHub Pages serves static files only - it cannot run the API routes, authentication, or MongoDB access this game relies on. The front end alone (static export) would have no server to validate answers or persist progress. If you specifically need static hosting, you'd have to split the project: static front end + a separately hosted API (e.g. Vercel serverless) + Atlas - the data layer here (Mongoose models + REST routes) is already structured to support that split.
 
 ## Customizing
 
@@ -157,7 +181,7 @@ This app has **server-side logic** (auth cookies, server-authoritative combat, M
 Item artwork is data-driven: every entry in `ITEMS` (`src/lib/adventure-data.ts`) accepts an optional `image`
 field. To give an item art:
 
-1. **Export a square PNG** — 128×128 px is the sweet spot (256×256 also works), transparency allowed, keep the
+1. **Export a square PNG** - 128×128 px is the sweet spot (256×256 also works), transparency allowed, keep the
    file under ~100 KB.
 2. **Drop the file into** `public/images/items/`. Name it after the item id so it's easy to match, e.g.
    `w-iron-sword.png`, `a-chain-mail.png`, `c-minor-potion.png`.
@@ -169,7 +193,7 @@ field. To give an item art:
      unique: false, image: "/images/items/w-iron-sword.png" }
    ```
 
-4. Restart the dev server — the **Shop**, **Gacha**, and **Equipment** screens render `image` automatically and
+4. Restart the dev server - the **Shop**, **Gacha**, and **Equipment** screens render `image` automatically and
    fall back to the slot emoji (⚔️ 🛡️ 💍 🧪) when it's missing, so nothing breaks if only some items have art.
 
 Tips:

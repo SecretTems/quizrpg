@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     }
     category = normalizeCategory(catDoc);
     // everyone may fight official categories; creators may also fight their own
-    // private (CUSTOM) or pending ones — never anyone else's unapproved content
+     // private (CUSTOM) or pending ones - never anyone else's unapproved content
     const playable =
       category.status === "OFFICIAL" || category.ownerId === user.id;
     if (!playable) {
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
       ? category.monsters
       : [
           {
-            // legacy categories have no lineup — fall back to their single enemy
+            // legacy categories have no lineup - fall back to their single enemy
             name: category.enemy.name,
             emoji: category.enemy.emoji,
             hp: category.enemy.baseHp,

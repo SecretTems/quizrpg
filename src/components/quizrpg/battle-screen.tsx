@@ -30,7 +30,7 @@ interface BattleScreenProps {
 const QUESTION_TIME = 30;
 
 /**
- * Per-question deadlines survive component unmounts — switching tabs during a
+ * Per-question deadlines survive component unmounts - switching tabs during a
  * battle and coming back must NOT hand the player a fresh 30 seconds. Keyed by
  * `battleId:questionNumber:questionId`; cleared when a battle ends.
  */
@@ -216,7 +216,7 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
     try {
       await api(`/api/battle/${battle.id}/flee`, { method: "POST" });
     } catch {
-      /* battle may already be over — still leave the screen */
+      /* battle may already be over - still leave the screen */
     }
     busyRef.current = false;
     clearDeadlinesFor(battle.id);
@@ -331,7 +331,7 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
               <DifficultyBadge difficulty={q.difficulty} />
               {q.status !== "OFFICIAL" && (
                 <span className="rounded-md border border-amber-600/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                  Practice — no rewards
+                  Practice - no rewards
                 </span>
               )}
               <span className="text-xs text-muted-foreground">

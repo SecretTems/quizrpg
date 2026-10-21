@@ -21,7 +21,7 @@ const pixelFont = Press_Start_2P({
 });
 
 export const metadata: Metadata = {
-  title: "QUIZRPG — Learn, Battle, Level Up",
+  title: "QUIZRPG - Learn, Battle, Level Up",
   description:
     "An interactive gaming quiz system that turns study review into turn-based RPG battles. Answer questions, defeat monsters, earn XP and climb the leaderboard.",
   keywords: ["quiz", "RPG", "gamification", "education", "learning", "battle"],

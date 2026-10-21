@@ -297,7 +297,7 @@ export function QuestionBankView() {
           <h3 className="font-display text-base">❓ Question Maker</h3>
           <p className="text-sm text-muted-foreground">
             {scope === "official"
-              ? "The approved bank every player draws from — view-only unless you're staff."
+              ? "The approved bank every player draws from - view-only unless you're staff."
               : scope === "pending"
                 ? "Submitted questions awaiting review. Approve to make them official."
                 : "Your own questions (🧩 Custom). Submit them for approval to make them official."}
@@ -409,7 +409,7 @@ export function QuestionBankView() {
                   ? "The official bank has no matching questions yet."
                   : scope === "pending"
                     ? "No submissions waiting for review."
-                    : "Your custom bank is empty. Create questions — they stay private to you until approved."}
+                    : "Your custom bank is empty. Create questions - they stay private to you until approved."}
             </p>
             {scope !== "official" && (
               <Button variant="outline" className="gap-1.5" onClick={openCreate}>
@@ -470,7 +470,7 @@ export function QuestionBankView() {
                           <AlertDialogContent>
                             <AlertDialogHeader>
                               <AlertDialogTitle>Delete this question?</AlertDialogTitle>
-                              <AlertDialogDescription>&ldquo;{q.text.slice(0, 120)}{q.text.length > 120 ? "…" : ""}&rdquo; — this cannot be undone.</AlertDialogDescription>
+                              <AlertDialogDescription>&ldquo;{q.text.slice(0, 120)}{q.text.length > 120 ? "…" : ""}&rdquo; - this cannot be undone.</AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -519,7 +519,7 @@ export function QuestionBankView() {
             <DialogTitle>{editing ? "Edit question" : "New question"}</DialogTitle>
             <DialogDescription>
               {isStaff && scope !== "mine"
-                ? "Saved directly to the official bank — no approval needed."
+                ? "Saved directly to the official bank - no approval needed."
                 : "Saved to your custom bank. You can also submit it for admin approval to make it official."}
             </DialogDescription>
           </DialogHeader>
@@ -534,6 +534,7 @@ export function QuestionBankView() {
                   value={form.subject}
                   onChange={(e) => setForm({ ...form, subject: e.target.value })}
                   placeholder="e.g. Mathematics"
+                  maxLength={40}
                 />
                 <datalist id="subject-suggestions">
                   {allSubjects.map((s) => (
@@ -564,12 +565,14 @@ export function QuestionBankView() {
                 onChange={(e) => setForm({ ...form, text: e.target.value })}
                 placeholder="What is the question you want to ask?"
                 rows={2}
+                maxLength={500}
+                className="resize-none break-words"
               />
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label>Options — mark the correct one (2–10)</Label>
+                <Label>Options - mark the correct one (2-10)</Label>
                 <div className="flex gap-1">
                   <Button
                     type="button" variant="outline" size="sm" className="h-7 w-7 p-0 text-lg leading-none"
@@ -611,6 +614,7 @@ export function QuestionBankView() {
                     </button>
                     <Input
                       value={opt}
+                      maxLength={200}
                       onChange={(e) => {
                         const options = [...form.options];
                         options[i] = e.target.value;
@@ -631,6 +635,7 @@ export function QuestionBankView() {
                 value={form.explanation}
                 onChange={(e) => setForm({ ...form, explanation: e.target.value })}
                 placeholder="Why is the correct answer right?"
+                maxLength={500}
               />
             </div>
           </div>
