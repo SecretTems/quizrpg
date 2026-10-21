@@ -506,7 +506,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
             <span className="min-w-0 flex-1">
               <span className="block font-display text-2xl leading-tight">Play</span>
               <span className="mt-1 block break-words text-sm font-normal opacity-90">
-                Pick a subject, difficulty, and opponent - then battle it out.
+                Pick a subject, difficulty, and opponent.
               </span>
             </span>
           </Button>
