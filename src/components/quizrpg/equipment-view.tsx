@@ -87,11 +87,11 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
   const pages = Math.max(1, Math.ceil(entries.length / PER_PAGE));
   const safePage = Math.min(page, pages - 1);
   const pageEntries = entries.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
-  // quick-access row: equippable gear (consumables stay in Storage)
+  // quick-access row: consumables only (potions, bombs, etc.) - equippable gear lives in Storage
   const inventoryItems = entries
     .filter(([id]) => {
       const d = itemById(id);
-      return d && d.slot !== "CONSUMABLE";
+      return d && d.slot === "CONSUMABLE";
     })
     .slice(0, INVENTORY_QUICK_COUNT);
 
@@ -107,17 +107,6 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
     } finally {
       setBusy(false);
     }
-  }
-
-  /** Equip button under an Inventory item - goes to the slot its type belongs to. */
-  function equipFromBackpack(itemId: string) {
-    const def = itemById(itemId);
-    if (!def) return;
-    if (def.slot === "CONSUMABLE") {
-      setMessage({ kind: "error", text: "Consumables can't be equipped." });
-      return;
-    }
-    void act({ action: "equip", itemId, slot: def.slot }, `Equipped ${def.name}.`);
   }
 
   /** Equip button on an empty slot - uses the Storage selection with a type check. */
@@ -211,10 +200,10 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
             </div>
 
             <div>
-              <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Inventory</h4>
+              <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Inventory (consumables)</h4>
               {inventoryItems.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border/60 p-3 text-xs text-muted-foreground">
-                  No gear in your backpack - visit the Shop or Gacha.
+                  No potions or bombs in your backpack - visit the Shop.
                 </p>
               ) : (
                 <div className="grid grid-cols-3 gap-2">
@@ -234,11 +223,12 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
                         {entry.qty > 1 && <span className="text-[10px] text-muted-foreground">×{entry.qty}</span>}
                         <Button
                           size="sm"
+                          variant="outline"
                           className="h-7 w-full text-xs"
                           disabled={busy}
-                          onClick={() => equipFromBackpack(itemId)}
+                          onClick={() => setMessage({ kind: "error", text: "Use consumables during battle from the battle screen." })}
                         >
-                          Equip
+                          Use in battle
                         </Button>
                       </div>
                     );

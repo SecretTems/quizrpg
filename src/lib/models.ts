@@ -22,6 +22,10 @@ export interface IEquipmentPiece {
   atk: number;
   def: number;
   rarity: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
+  /** max hits before it breaks; undefined = no durability (older items) */
+  maxDurability?: number;
+  /** hits taken so far; an item at maxDurability is broken (no stats) */
+  durability?: number;
 }
 
 export interface IUser extends Document {
@@ -46,6 +50,10 @@ export interface IUser extends Document {
   backpack: Record<string, { qty: number; piece?: IEquipmentPiece } | undefined>;
   /** true once the onboarding tutorial has been completed */
   tutorialSeen: boolean;
+  /** last adventure (battle start) epoch ms used for accessory wear */
+  lastAdventureAt: number | null;
+  /** Adventure difficulty of the last adventure (for accessory wear) */
+  lastAdventureDifficulty: string | null;
   /** email address (required for all accounts) */
   email: string;
   /** true once the email has been verified via OTP */
@@ -58,6 +66,10 @@ export interface IUser extends Document {
   twoFactorEnabled: boolean;
   /** base32 secret for TOTP 2FA */
   twoFactorSecret: string | null;
+  /** epoch ms of the last daily-bonus claim (null = never claimed) */
+  lastDailyClaimAt: number | null;
+  /** current consecutive daily-claim streak (resets if a day is missed) */
+  dailyStreak: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -96,12 +108,16 @@ const UserSchema = new Schema<IUser>(
     },
     backpack: { type: Schema.Types.Mixed, default: {} },
     tutorialSeen: { type: Boolean, default: false },
+    lastAdventureAt: { type: Number, default: null },
+    lastAdventureDifficulty: { type: String, default: null },
     email: { type: String, required: true, unique: true, lowercase: true, maxlength: 254 },
     emailVerified: { type: Boolean, default: false },
     otpCode: { type: String, default: null },
     otpExpires: { type: Number, default: null },
     twoFactorEnabled: { type: Boolean, default: false },
     twoFactorSecret: { type: String, default: null },
+    lastDailyClaimAt: { type: Number, default: null },
+    dailyStreak: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true },
 );
@@ -121,6 +137,12 @@ export interface IQuestion extends Document {
   status: "OFFICIAL" | "CUSTOM" | "PENDING" | "REJECTED";
   /** admin-only notes when a submission is rejected */
   reviewNote: string;
+  /** per-question time limit in seconds (10-300); default 30 */
+  timerSeconds: number;
+  /** admin user ids who voted to approve (must reach 3 to become official) */
+  approvalVotes: string[];
+  /** admin user ids who voted to reject */
+  rejectionVotes: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -136,6 +158,9 @@ const QuestionSchema = new Schema<IQuestion>(
     ownerId: { type: String, default: null },
     status: { type: String, enum: ["OFFICIAL", "CUSTOM", "PENDING", "REJECTED"], default: "CUSTOM" },
     reviewNote: { type: String, default: "", maxlength: 300 },
+    timerSeconds: { type: Number, default: 30, min: 10, max: 300 },
+    approvalVotes: { type: [String], default: [] },
+    rejectionVotes: { type: [String], default: [] },
   },
   { timestamps: true },
 );
@@ -154,6 +179,8 @@ export interface BattleMonster {
   atkMin: number;
   atkMax: number;
   subjects: string[];
+  /** question modifiers snapshot for this battle */
+  modifiers?: { id: string; chance: number; amount: number }[];
 }
 
 export interface IBattle extends Document {
@@ -263,6 +290,8 @@ export interface IMonster {
   atkMax: number;
   /** which subjects' question pools this monster draws from */
   subjects: string[];
+  /** question modifiers with tunable trigger chances, e.g. [{ id: "TAX_COLLECTING", chance: 50, amount: 10 }] */
+  modifiers?: { id: string; chance: number; amount: number }[];
 }
 
 export interface ICategory extends Document {
@@ -285,6 +314,10 @@ export interface ICategory extends Document {
   ownerId: string | null;
   /** player-created categories awaiting admin approval to become official */
   status: "OFFICIAL" | "CUSTOM" | "PENDING" | "REJECTED";
+  /** admin user ids who voted to approve (must reach 3 to become official) */
+  approvalVotes: string[];
+  /** admin user ids who voted to reject (any reject removes the vote) */
+  rejectionVotes: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -298,6 +331,20 @@ const MonsterSchema = new Schema<IMonster>(
     atkMin: { type: Number, required: true, min: 1 },
     atkMax: { type: Number, required: true, min: 1 },
     subjects: { type: [String], default: [] },
+    /** question modifiers with trigger chances */
+    modifiers: {
+      type: [
+        new Schema(
+          {
+            id: { type: String, required: true },
+            chance: { type: Number, default: 50, min: 0, max: 100 },
+            amount: { type: Number, default: 0, min: 0 },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
   },
   { _id: false },
 );
@@ -321,6 +368,8 @@ const CategorySchema = new Schema<ICategory>(
     isOfficial: { type: Boolean, default: false },
     ownerId: { type: String, default: null },
     status: { type: String, enum: ["OFFICIAL", "CUSTOM", "PENDING", "REJECTED"], default: "CUSTOM" },
+    approvalVotes: { type: [String], default: [] },
+    rejectionVotes: { type: [String], default: [] },
   },
   { timestamps: true },
 );
@@ -396,6 +445,10 @@ export interface NormalizedUser {
   backpack: Record<string, { qty: number; piece?: IEquipmentPiece } | undefined>;
   tutorialSeen: boolean;
   twoFactorEnabled: boolean;
+  /** epoch ms of the last daily-bonus claim (null = never claimed) */
+  lastDailyClaimAt: number | null;
+  /** current consecutive daily-claim streak */
+  dailyStreak: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -411,6 +464,12 @@ export interface NormalizedQuestion {
   ownerId: string | null;
   status: "OFFICIAL" | "CUSTOM" | "PENDING" | "REJECTED";
   reviewNote: string;
+  /** per-question time limit in seconds (10-300); default 30 */
+  timerSeconds: number;
+  /** admin user ids who voted to approve (must reach 3 to become official) */
+  approvalVotes: string[];
+  /** admin user ids who voted to reject */
+  rejectionVotes: string[];
   createdAt: Date;
   updatedAt: Date;
 }

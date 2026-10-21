@@ -8,26 +8,34 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/store";
 import { api } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { ProfileDialog } from "@/components/quizrpg/profile-dialog";
 import type { LeaderboardEntry } from "@/lib/types";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
-function EntryRow({ entry, me, metric }: { entry: LeaderboardEntry; me: string; metric: "score" | "xp" }) {
+function EntryRow({ entry, me, metric, onView }: { entry: LeaderboardEntry; me: string; metric: "score" | "xp"; onView: (userId: string) => void }) {
   const isMe = entry.userId === me;
   return (
-    <motion.div
+    <motion.button
+      type="button"
+      onClick={() => onView(entry.userId)}
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
       className={cn(
-        "flex items-center gap-3 rounded-lg border px-3 py-2.5",
+        "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors hover:bg-accent",
         isMe ? "border-primary/60 bg-primary/10" : "border-border bg-card/60",
       )}
+      aria-label={`View ${entry.displayName}'s profile`}
     >
       <span className="flex w-8 shrink-0 items-center justify-center text-sm font-bold tabular-nums">
         {entry.rank <= 3 ? <span className="text-lg" aria-hidden="true">{MEDALS[entry.rank - 1]}</span> : `#${entry.rank}`}
       </span>
-      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-muted/50 text-lg" aria-hidden="true">
-        {isMe ? "🧙" : "🧑‍🎓"}
+      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted/50 text-lg" aria-hidden="true">
+        {entry.avatar ? (
+          <img src={entry.avatar} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <span>{isMe ? "🧙" : "🧑‍🎓"}</span>
+        )}
         {entry.rank === 1 && <Crown className="absolute -top-2 h-4 w-4 text-[var(--xp)]" aria-hidden="true" />}
       </div>
       <div className="min-w-0 flex-1">
@@ -45,7 +53,7 @@ function EntryRow({ entry, me, metric }: { entry: LeaderboardEntry; me: string; 
           {metric === "score" ? `${entry.battlesWon} wins` : `${entry.battlesWon} wins · best streak ${entry.bestStreak}`}
         </p>
       </div>
-    </motion.div>
+    </motion.button>
   );
 }
 
@@ -56,6 +64,7 @@ export function LeaderboardView() {
   const [totalPlayers, setTotalPlayers] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,7 +117,7 @@ export function LeaderboardView() {
             </CardHeader>
             <CardContent className="space-y-1.5">
               {byScore.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No battles recorded yet. Be the first champion!</p>}
-              {byScore.map((e) => <EntryRow key={e.userId} entry={e} me={user?.id ?? ""} metric="score" />)}
+              {byScore.map((e) => <EntryRow key={e.userId} entry={e} me={user?.id ?? ""} metric="score" onView={setViewingId} />)}
             </CardContent>
           </Card>
         </TabsContent>
@@ -119,11 +128,12 @@ export function LeaderboardView() {
               <CardDescription>Total XP from every correct answer and victory</CardDescription>
             </CardHeader>
             <CardContent className="space-y-1.5">
-              {byXp.map((e) => <EntryRow key={e.userId} entry={e} me={user?.id ?? ""} metric="xp" />)}
+              {byXp.map((e) => <EntryRow key={e.userId} entry={e} me={user?.id ?? ""} metric="xp" onView={setViewingId} />)}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+      <ProfileDialog userId={viewingId} onClose={() => setViewingId(null)} />
     </div>
   );
 }

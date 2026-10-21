@@ -11,6 +11,7 @@ function toEntry(u: ReturnType<typeof normalizeUser>, rank: number): Leaderboard
     userId: u.id,
     username: u.username,
     displayName: u.displayName,
+    avatar: u.avatar || "",
     level: levelFromXp(u.xp),
     xp: u.xp,
     bestScore: u.bestScore,

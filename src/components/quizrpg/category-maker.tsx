@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Loader2, Pencil, Plus, Send, Skull, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { api, useAuth } from "@/lib/store";
 import { uploadImage } from "@/lib/images";
 import { StatusBadge } from "@/components/quizrpg/bits";
+import { SubjectPicker } from "@/components/quizrpg/subject-picker";
 import type { NormalizedCategory } from "@/lib/models";
 
 interface CategoryMakerProps {
@@ -42,11 +43,11 @@ interface CategoryMakerProps {
 interface CategoryForm {
   name: string;
   description: string;
-  subjects: string;
+  subjects: string[];
   icon: string;
 }
 
-const EMPTY_FORM: CategoryForm = { name: "", description: "", subjects: "", icon: "" };
+const EMPTY_FORM: CategoryForm = { name: "", description: "", subjects: [], icon: "" };
 
 export function CategoryMaker({ categories, onReload, onManageMonsters }: CategoryMakerProps) {
   const user = useAuth((s) => s.user);
@@ -59,7 +60,15 @@ export function CategoryMaker({ categories, onReload, onManageMonsters }: Catego
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [allSubjects, setAllSubjects] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // subjects the player can pick from (official + their own)
+  useEffect(() => {
+    api<{ subjects: string[] }>("/api/subjects")
+      .then((d) => setAllSubjects(d.subjects))
+      .catch(() => setAllSubjects([]));
+  }, []);
 
   const canEdit = (c: NormalizedCategory) => Boolean(user && (isStaff || c.ownerId === user.id));
 
@@ -74,7 +83,7 @@ export function CategoryMaker({ categories, onReload, onManageMonsters }: Catego
     setForm({
       name: c.name,
       description: c.description,
-      subjects: c.subjects.join(", "),
+      subjects: [...c.subjects],
       icon: c.icon ?? "",
     });
     setDialogOpen(true);
@@ -97,10 +106,7 @@ export function CategoryMaker({ categories, onReload, onManageMonsters }: Catego
   }
 
   async function save() {
-    const subjects = form.subjects
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const subjects = form.subjects.map((s) => s.trim()).filter(Boolean);
     if (!form.name.trim()) {
       toast({ title: "Name required", description: "Give your category a name.", variant: "destructive" });
       return;
@@ -108,7 +114,7 @@ export function CategoryMaker({ categories, onReload, onManageMonsters }: Catego
     if (!subjects.length) {
       toast({
         title: "Subject required",
-        description: "Add at least one subject (comma separated).",
+        description: "Add at least one subject.",
         variant: "destructive",
       });
       return;
@@ -323,14 +329,16 @@ export function CategoryMaker({ categories, onReload, onManageMonsters }: Catego
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cat-subjects">Subjects</Label>
-              <Input
-                id="cat-subjects"
-                value={form.subjects}
-                onChange={(e) => setForm({ ...form, subjects: e.target.value })}
-                placeholder="English, History (comma separated)"
-                maxLength={200}
+              <Label>Subjects</Label>
+              <SubjectPicker
+                available={allSubjects}
+                selected={form.subjects}
+                onChange={(subjects) => setForm({ ...form, subjects })}
               />
+              <p className="text-[11px] text-muted-foreground">
+                Subjects decide which question pools your monsters can draw from. Tap a subject to add it, tap the X
+                on a chip to remove it.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Icon (optional)</Label>

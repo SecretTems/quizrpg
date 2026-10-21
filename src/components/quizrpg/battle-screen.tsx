@@ -120,6 +120,8 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
   const [battle, setBattle] = useState<BattleStateDTO>(initialBattle);
   const [selected, setSelected] = useState<number | null>(null);
   const [revealed, setRevealed] = useState<AnswerResultDTO | null>(null);
+  /** ref mirror of the current display order, used by submitAnswer */
+  const displayOrderRef = useRef<number[]>([]);
   const [pending, setPending] = useState(false);
   const [floaties, setFloaties] = useState<Floaty[]>([]);
   const [shake, setShake] = useState<"enemy" | "player" | null>(null);
@@ -189,16 +191,18 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
     }, 2300);
   }
 
-  async function submitAnswer(choiceIndex: number) {
+  async function submitAnswer(displayIndex: number) {
     if (busyRef.current) return;
-    if (choiceIndex >= 0 && phase === "reveal") return;
+    if (displayIndex >= 0 && phase === "reveal") return;
     busyRef.current = true;
     setPending(true);
-    if (choiceIndex >= 0) setSelected(choiceIndex);
+    // map the shuffled display position back to the question's original index
+    const originalIndex = displayIndex >= 0 ? (displayOrderRef.current[displayIndex] ?? displayIndex) : -1;
+    if (displayIndex >= 0) setSelected(displayIndex);
     try {
       const result = await api<AnswerResultDTO>(`/api/battle/${battle.id}/answer`, {
         method: "POST",
-        body: JSON.stringify({ choiceIndex }),
+        body: JSON.stringify({ choiceIndex: originalIndex }),
       });
       applyResult(result);
     } catch {
@@ -223,6 +227,20 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
     onBattleEnd(null);
   }
 
+  /* shuffle the answer positions per question encounter (stable while this question is up) */
+  const displayOrder = useMemo(() => {
+    const options = battle.question?.options ?? [];
+    const order = options.map((_, i) => i);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    return order;
+  }, [battle.question?.id, battle.question?.options.length]);
+  useEffect(() => {
+    displayOrderRef.current = displayOrder;
+  }, [displayOrder]);
+
   if (!q) {
     return (
       <div className="flex flex-col items-center gap-3 py-20 text-center">
@@ -232,6 +250,8 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
       </div>
     );
   }
+
+  const displayOptions = displayOrder.map((origIdx) => q.options[origIdx]);
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
@@ -360,9 +380,9 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
           </AnimatePresence>
 
           <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Answer choices">
-            {q.options.map((opt, i) => {
+            {displayOptions.map((opt, i) => {
               const isSelected = selected === i;
-              const isCorrect = revealed ? revealed.correctIndex === i : false;
+              const isCorrect = revealed ? displayOrder[revealed.correctIndex] === i : false;
               const isWrongPick = revealed ? isSelected && !revealed.correct : false;
               const disabled = phase === "reveal" || pending;
               return (

@@ -20,6 +20,8 @@ export interface BattleQuestion {
   options: string[];
   difficulty: Difficulty;
   status: "OFFICIAL" | "PENDING" | "REJECTED" | "CUSTOM";
+  /** per-question time limit in seconds (10-300) */
+  timerSeconds: number;
 }
 
 /**
@@ -39,15 +41,22 @@ export async function drawWave(
   mode: BattleModeId,
   wave = 1,
   excludeIds: string[] = [],
+  /** when fighting a custom category, its creator's CUSTOM questions are also eligible */
+  extraOwnerIds: string[] = [],
 ): Promise<BattleQuestion[]> {
   await connectDB();
   // Question limits per difficulty are removed: draw every available question
   // of the selected difficulty instead of a fixed per-mode cap.
   const difficulty = pickDifficulty(mode, wave);
 
-  // battles always draw from the OFFICIAL bank (custom questions are
-  // practice-only and never enter the battle pool)
-  const poolDocs = await Question.find({ status: "OFFICIAL" }).lean();
+  // battles draw from the OFFICIAL bank (custom questions are practice-only),
+  // but for a player-created category the creator's own CUSTOM questions in
+  // the category's subjects join the pool so private content stays playable
+  const poolDocs = await Question.find(
+    extraOwnerIds.length > 0
+      ? { $or: [{ status: "OFFICIAL" }, { status: "CUSTOM", ownerId: { $in: extraOwnerIds } }] }
+      : { status: "OFFICIAL" },
+  ).lean();
   if (poolDocs.length === 0) return [];
   const pool = poolDocs.map(normalizeQuestion);
 
@@ -103,6 +112,7 @@ export function toBattleQuestion(q: NormalizedQuestion): BattleQuestion {
     options: q.options,
     difficulty: q.difficulty,
     status: q.status,
+    timerSeconds: q.timerSeconds ?? 30,
   };
 }
 

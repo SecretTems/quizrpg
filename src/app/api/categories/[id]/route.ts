@@ -21,6 +21,8 @@ export async function GET(_req: Request, { params }: Params) {
   return NextResponse.json({ category: normalizeCategory(doc) });
 }
 
+const APPROVAL_VOTES_REQUIRED = 3;
+
 export async function PUT(req: Request, { params }: Params) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
@@ -76,12 +78,23 @@ export async function PUT(req: Request, { params }: Params) {
   }
 
   if (typeof body.status === "string") {
-    // Only admins may promote a category to OFFICIAL; keep isOfficial in sync.
     if (body.status === "OFFICIAL" && !staff) {
       // players cannot self-promote - ignore the status change
-    } else if (["OFFICIAL", "CUSTOM", "PENDING", "REJECTED"].includes(body.status)) {
+    } else if (body.status === "OFFICIAL" && staff) {
+      // admins vote - a category needs APPROVAL_VOTES_REQUIRED approvals to become official
+      update.$addToSet = { approvalVotes: user.id };
+      update.$pull = { rejectionVotes: user.id };
+    } else if (body.status === "REJECTED" && staff) {
+      update.$addToSet = { rejectionVotes: user.id };
+      update.$pull = { approvalVotes: user.id };
+    } else if (["CUSTOM", "PENDING", "REJECTED"].includes(body.status) && (staff || ownerId === user.id)) {
       update.status = body.status;
-      if (staff) update.isOfficial = body.status === "OFFICIAL";
+      if (staff) update.isOfficial = false;
+      // a resubmission resets previous votes
+      if (body.status === "PENDING") {
+        update.approvalVotes = [];
+        update.rejectionVotes = [];
+      }
     }
   }
 
@@ -89,8 +102,32 @@ export async function PUT(req: Request, { params }: Params) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }
 
-  const updated = await Category.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
+  // apply the vote bookkeeping first, then decide whether the votes crossed the threshold
+  const { $addToSet, $pull, ...rest } = update as Record<string, unknown> & {
+    $addToSet?: Record<string, unknown>;
+    $pull?: Record<string, unknown>;
+  };
+  let updated = await Category.findByIdAndUpdate(
+    id,
+    {
+      ...(Object.keys(rest).length > 0 ? { $set: rest } : {}),
+      ...($addToSet ? { $addToSet } : {}),
+      ...($pull ? { $pull } : {}),
+    },
+    { new: true },
+  ).lean();
   if (!updated) return NextResponse.json({ error: "Category not found." }, { status: 404 });
+
+  if (
+    updated.status === "PENDING" &&
+    updated.approvalVotes.length >= APPROVAL_VOTES_REQUIRED
+  ) {
+    updated = await Category.findByIdAndUpdate(
+      id,
+      { $set: { status: "OFFICIAL", isOfficial: true } },
+      { new: true },
+    ).lean();
+  }
   return NextResponse.json({ category: normalizeCategory(updated) });
 }
 

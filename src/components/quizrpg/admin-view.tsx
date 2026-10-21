@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, ShieldCheck, Trash2, UserCog, LibraryBig, Swords, Users, Search, Check, Clock } from "lucide-react";
+import { Loader2, ShieldCheck, Trash2, UserCog, LibraryBig, Swords, Users, Search, Check, Clock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -86,6 +86,16 @@ export function AdminView() {
       await loadCategories();
     } catch (err) {
       toast({ title: "Approve failed", description: err instanceof Error ? err.message : "", variant: "destructive" });
+    }
+  };
+
+  const rejectCategory = async (id: string) => {
+    try {
+      await api(`/api/categories/${id}`, { method: "PUT", body: JSON.stringify({ status: "REJECTED" }) });
+      toast({ title: "Category rejected", description: "It stays private to its owner." });
+      await loadCategories();
+    } catch (err) {
+      toast({ title: "Reject failed", description: err instanceof Error ? err.message : "", variant: "destructive" });
     }
   };
 
@@ -230,14 +240,14 @@ export function AdminView() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 px-2 text-destructive hover:text-destructive"
+                    className="h-7 gap-1 px-2 text-xs text-destructive hover:text-destructive"
                     onClick={() => {
-                      if (typeof window !== "undefined" && window.confirm(`Delete the "${c.name}" category?`)) {
-                        void deleteCategory(c.id);
+                      if (typeof window !== "undefined" && window.confirm(`Reject the "${c.name}" category? It stays private to its owner.`)) {
+                        void rejectCategory(c.id);
                       }
                     }}
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <X className="h-3 w-3" /> Reject
                   </Button>
                 </div>
               </div>

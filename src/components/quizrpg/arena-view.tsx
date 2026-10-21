@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Lock, Loader2, Play, Swords, RotateCcw, Trophy, Skull, ArrowUpCircle, Sparkles, Shield, ShoppingBag } from "lucide-react";
+import { Lock, Loader2, Play, Swords, RotateCcw, Trophy, Skull, ArrowUpCircle, Sparkles, Shield, ShoppingBag, Users, Crown, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -21,6 +21,7 @@ import { BattleScreen } from "@/components/quizrpg/battle-screen";
 import { EquipmentView } from "@/components/quizrpg/equipment-view";
 import { ShopView } from "@/components/quizrpg/shop-view";
 import { GachaView } from "@/components/quizrpg/gacha-view";
+import { DailyBonusView } from "@/components/quizrpg/daily-bonus-view";
 import { cn } from "@/lib/utils";
 import type { BattleStateDTO, AnswerResultDTO } from "@/lib/types";
 import type { NormalizedCategory, NormalizedUser } from "@/lib/models";
@@ -53,6 +54,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   const [showEquipment, setShowEquipment] = useState(false);
   const [showShop, setShowShop] = useState(false);
   const [showGacha, setShowGacha] = useState(false);
+  const [showDaily, setShowDaily] = useState(false);
   const [profile, setProfile] = useState<NormalizedUser | null>(null);
 
   const level = user ? levelProgress(user.xp).level : 1;
@@ -277,7 +279,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                 onClick={() => setMode(m.id)}
                 aria-pressed={active}
                 className={cn(
-                  "rounded-xl border-2 p-3 text-left transition-all",
+                  "relative rounded-xl border-2 p-3 text-left transition-all",
                   active && !locked
                     ? "border-primary bg-primary/10 shadow-[0_0_18px_-6px_var(--primary)]"
                     : "border-border hover:border-primary/50 hover:bg-accent",
@@ -291,7 +293,6 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                 )}
                 <span className="block font-display text-xs">{m.label}</span>
                 <span className="mt-2 flex flex-wrap gap-1 text-[10px] font-bold">
-                  <span className="rounded bg-sky-600/15 px-1.5 py-0.5 text-sky-600 dark:text-sky-400">{m.questionCount} Qs</span>
                   <span className="rounded bg-[color-mix(in_oklab,var(--xp)_18%,transparent)] px-1.5 py-0.5 text-[var(--xp)]">+{m.rewardXp} XP</span>
                 </span>
               </button>
@@ -427,70 +428,120 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
         </DialogContent>
       </Dialog>
 
-      {/* main action buttons */}
-      <div className="mx-auto flex w-full max-w-xl flex-col gap-3">
-        <Button
-          className="h-auto w-full items-start gap-4 px-5 py-5 text-left shadow-lg"
-          onClick={() => setShowPlayModal(true)}
-        >
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/20" aria-hidden="true">
-            <Play className="h-7 w-7" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-display text-2xl leading-tight">Play</span>
-            <span className="mt-1 block text-sm font-normal opacity-90">
-              Pick a subject, difficulty, and opponent - then battle it out.
+      {/* main action buttons - 2 columns */}
+      <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2">
+        {/* left column - battles */}
+        <div className="flex flex-col gap-3">
+          <Button
+            className="h-auto w-full items-start gap-4 px-5 py-5 text-left shadow-lg"
+            onClick={() => setShowPlayModal(true)}
+          >
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/20" aria-hidden="true">
+              <Play className="h-7 w-7" />
             </span>
-          </span>
-        </Button>
+            <span className="min-w-0 flex-1">
+              <span className="block font-display text-2xl leading-tight">Play</span>
+              <span className="mt-1 block text-sm font-normal opacity-90">
+                Pick a subject, difficulty, and opponent - then battle it out.
+              </span>
+            </span>
+          </Button>
 
-        <Button
-          variant="outline"
-          className="h-auto w-full items-start gap-3 px-4 py-3 text-left"
-          onClick={() => setShowEquipment(true)}
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
-            <Shield className="h-5 w-5" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold">Equipment</span>
-            <span className="block text-xs font-normal text-muted-foreground">
-              Equip weapons, armor, and accessories you&apos;ve earned.
+          <Button
+            variant="outline"
+            className="h-auto w-full items-start gap-3 px-4 py-3 text-left"
+            disabled
+            title="Coming soon"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
+              <Users className="h-5 w-5" />
             </span>
-          </span>
-        </Button>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold">Multiplayer</span>
+              <span className="block text-xs font-normal text-muted-foreground">Battle other players - coming soon.</span>
+            </span>
+          </Button>
 
-        <Button
-          variant="outline"
-          className="h-auto w-full items-start gap-3 px-4 py-3 text-left"
-          onClick={() => setShowShop(true)}
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
-            <ShoppingBag className="h-5 w-5" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold">Shop</span>
-            <span className="block text-xs font-normal text-muted-foreground">
-              Spend gold on potions, boosts, and bombs.
+          <Button
+            variant="outline"
+            className="h-auto w-full items-start gap-3 px-4 py-3 text-left"
+            disabled
+            title="Coming soon"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
+              <Crown className="h-5 w-5" />
             </span>
-          </span>
-        </Button>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold">Quiz Boss</span>
+              <span className="block text-xs font-normal text-muted-foreground">Face the ultimate quiz gauntlet - coming soon.</span>
+            </span>
+          </Button>
+        </div>
 
-        <Button
-          variant="outline"
-          className="h-auto w-full items-start gap-3 px-4 py-3 text-left"
-          onClick={() => setShowGacha(true)}
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
-            <Sparkles className="h-5 w-5" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold">Gacha</span>
-            <span className="block text-xs font-normal text-muted-foreground">
-              Spend gems for a chance at rare and legendary gear.
+        {/* right column - progression */}
+        <div className="flex flex-col gap-3">
+          <Button
+            variant="outline"
+            className="h-auto w-full items-start gap-3 px-4 py-3 text-left"
+            onClick={() => setShowEquipment(true)}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
+              <Shield className="h-5 w-5" />
             </span>
-          </span>
-        </Button>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold">Equipment</span>
+              <span className="block text-xs font-normal text-muted-foreground">
+                Equip weapons, armor, and accessories you&apos;ve earned.
+              </span>
+            </span>
+          </Button>
+
+          <Button
+            variant="outline"
+            className="h-auto w-full items-start gap-3 px-4 py-3 text-left"
+            onClick={() => setShowShop(true)}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
+              <ShoppingBag className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold">Shop</span>
+              <span className="block text-xs font-normal text-muted-foreground">
+                Spend gold on potions, boosts, and bombs.
+              </span>
+            </span>
+          </Button>
+
+          <Button
+            variant="outline"
+            className="h-auto w-full items-start gap-3 px-4 py-3 text-left"
+            onClick={() => setShowGacha(true)}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold">Gacha</span>
+              <span className="block text-xs font-normal text-muted-foreground">
+                Spend gems for a chance at rare and legendary gear.
+              </span>
+            </span>
+          </Button>
+
+          <Button
+            variant="outline"
+            className="h-auto w-full items-start gap-3 px-4 py-3 text-left"
+            onClick={() => setShowDaily(true)}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
+              <Gift className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold">Daily</span>
+              <span className="block text-xs font-normal text-muted-foreground">Claim your daily login bonus.</span>
+            </span>
+          </Button>
+        </div>
       </div>
       <p className="text-center text-xs text-muted-foreground">
         {lp.current}/{lp.needed} XP into level {lp.level}
@@ -598,6 +649,12 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
       <GachaView
         open={showGacha}
         onOpenChange={setShowGacha}
+        user={profile}
+        onRefresh={() => void refreshProfile()}
+      />
+      <DailyBonusView
+        open={showDaily}
+        onOpenChange={setShowDaily}
         user={profile}
         onRefresh={() => void refreshProfile()}
       />

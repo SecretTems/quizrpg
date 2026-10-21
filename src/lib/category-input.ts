@@ -8,6 +8,7 @@ export interface MonsterInput {
   atkMin: number;
   atkMax: number;
   subjects: string[];
+  modifiers: { id: string; chance: number; amount: number }[];
 }
 
 const IMAGE_RE = /^data:image\/(png|jpeg|webp|gif);base64,/;
@@ -47,8 +48,36 @@ export function sanitizeMonsters(v: unknown): MonsterInput[] {
       atkMin,
       atkMax,
       subjects,
+      modifiers: sanitizeModifiers(r.modifiers),
     });
     if (out.length >= MAX_MONSTERS) break;
+  }
+  return out;
+}
+
+const VALID_MONSTER_MODIFIER_IDS = new Set([
+  "TAX_COLLECTING",
+  "SHUFFLER",
+  "RESTING",
+  "RESTRAINT",
+  "DISABLER",
+]);
+
+/** Keep only known modifier ids with sane chance/amount values (max 5). */
+function sanitizeModifiers(v: unknown): { id: string; chance: number; amount: number }[] {
+  if (!Array.isArray(v)) return [];
+  const out: { id: string; chance: number; amount: number }[] = [];
+  for (const raw of v) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    const id = String(r.id ?? "");
+    if (!VALID_MONSTER_MODIFIER_IDS.has(id)) continue;
+    out.push({
+      id,
+      chance: Math.min(100, Math.max(0, Math.round(Number(r.chance) || 0))),
+      amount: Math.max(0, Math.min(9999, Math.round(Number(r.amount) || 0))),
+    });
+    if (out.length >= 5) break;
   }
   return out;
 }

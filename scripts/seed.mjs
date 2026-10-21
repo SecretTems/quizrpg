@@ -144,51 +144,58 @@ async function seed() {
   console.log(`Seeding QUIZRPG database at ${uri.replace(/\/\/.*@/, "//***@")}...`);
 
   // --- super admin account ---
+  // $set (not $setOnInsert) so re-running repairs an existing doc that predates the email requirement
   const superResult = await User.updateOne(
     { username: "superadmin" },
     {
-      $setOnInsert: {
+      $set: {
         username: "superadmin",
         displayName: "Archmage",
-        passwordHash: hashPassword("super123"),
+        email: "superadmin@quizrpg.local",
+        emailVerified: true,
+        passwordHash: hashPassword("Super!Admin1"),
         role: "SUPER_ADMIN",
       },
     },
     { upsert: true },
   );
   const superAdmin = await User.findOne({ username: "superadmin" }).lean();
-  console.log(`Super admin ready: superadmin / super123 (${superResult.upsertedId ? "created" : "already existed"}, id=${superAdmin._id})`);
+  console.log(`Super admin ready: superadmin / Super!Admin1 (${superResult.upsertedId ? "created" : "already existed"}, id=${superAdmin._id})`);
 
   // --- admin account ---
   const adminResult = await User.updateOne(
     { username: "admin" },
     {
-      $setOnInsert: {
+      $set: {
         username: "admin",
         displayName: "Game Master",
-        passwordHash: hashPassword("admin123"),
+        email: "admin@quizrpg.local",
+        emailVerified: true,
+        passwordHash: hashPassword("Game!Master1"),
         role: "ADMIN",
       },
     },
     { upsert: true },
   );
   const admin = await User.findOne({ username: "admin" }).lean();
-  console.log(`Admin ready: admin / admin123 (${adminResult.upsertedId ? "created" : "already existed"}, id=${admin._id})`);
+  console.log(`Admin ready: admin / Game!Master1 (${adminResult.upsertedId ? "created" : "already existed"}, id=${admin._id})`);
 
   // --- demo player ---
   await User.updateOne(
     { username: "hero" },
     {
-      $setOnInsert: {
+      $set: {
         username: "hero",
         displayName: "Test Hero",
-        passwordHash: hashPassword("hero123"),
+        email: "hero@quizrpg.local",
+        emailVerified: true,
+        passwordHash: hashPassword("Test!Hero1"),
         role: "PLAYER",
       },
     },
     { upsert: true },
   );
-  console.log("Demo player ready: hero / hero123");
+  console.log("Demo player ready: hero / Test!Hero1");
 
   // --- official questions (replace stale official bank only) ---
   const count = await Question.countDocuments({ status: "OFFICIAL" });

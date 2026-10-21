@@ -85,6 +85,19 @@ export function AppShell() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            {/* avatar - click to open profile */}
+            <button
+              className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted/50 text-base"
+              onClick={() => setTab("profile")}
+              aria-label="Open your profile"
+              title="Your profile"
+            >
+              {user?.avatar ? (
+                <img src={user.avatar} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span aria-hidden="true">🧙</span>
+              )}
+            </button>
             <span
               className="hidden items-center gap-1.5 rounded-full border border-[var(--xp)]/40 bg-[color-mix(in_oklab,var(--xp)_12%,transparent)] px-3 py-1 text-xs font-bold tabular-nums sm:flex"
               title={`${lp.current}/${lp.needed} XP to next level`}

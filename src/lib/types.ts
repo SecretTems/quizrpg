@@ -20,6 +20,10 @@ export interface SafeUser {
   tutorialSeen: boolean;
   /** 2FA is enabled for this account (admins/super admins) */
   twoFactorEnabled: boolean;
+  /** epoch ms of the last daily-bonus claim (null = never claimed) */
+  lastDailyClaimAt: number | null;
+  /** current consecutive daily-claim streak */
+  dailyStreak: number;
   createdAt: string;
 }
 
@@ -34,6 +38,10 @@ export interface QuestionDTO {
   ownerId: string | null;
   status: "OFFICIAL" | "CUSTOM" | "PENDING" | "REJECTED";
   reviewNote: string;
+  /** per-question time limit in seconds (10-300) */
+  timerSeconds: number;
+  approvalVotes: string[];
+  rejectionVotes: string[];
   ownerUsername?: string | null;
   createdAt: string;
 }
@@ -66,6 +74,8 @@ export interface BattleStateDTO {
     options: string[];
     difficulty: "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER";
     status: "OFFICIAL" | "PENDING" | "REJECTED" | "CUSTOM";
+    /** per-question time limit in seconds (10-300) */
+    timerSeconds: number;
   } | null;
   questionNumber: number;
   totalSeen: number;
@@ -123,6 +133,8 @@ export interface LeaderboardEntry {
   userId: string;
   username: string;
   displayName: string;
+  /** data-URL profile picture when set */
+  avatar?: string;
   level: number;
   xp: number;
   bestScore: number;

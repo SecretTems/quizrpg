@@ -34,7 +34,7 @@ Requires Node.js **20.6+** and a running MongoDB instance (default port 27017).
 
 ```bash
 npm install
-npm run seed       # creates demo accounts + 45 starter questions
+npm run seed       # creates demo accounts + 75 starter questions
 npm run dev        # open http://localhost:3000
 ```
 
@@ -54,8 +54,11 @@ SESSION_SECRET=any-long-random-string
 
 | Account | Password | Role |
 | ------- | -------- | ---- |
-| `admin` | `admin123` | Admin (global bank + user management) |
-| `hero`  | `hero123`  | Player |
+| `superadmin` | `Super!Admin1` | Super admin (everything + 2FA required at login) |
+| `admin` | `Game!Master1` | Admin (global bank + user management, 2FA required at login) |
+| `hero`  | `Test!Hero1`  | Player |
+
+The demo accounts are pre-verified (no OTP email needed). Admins should set up 2FA in the Profile tab - the login screen will prompt for a 6-digit authenticator code.
 
 ## Environment variables (`.env`)
 

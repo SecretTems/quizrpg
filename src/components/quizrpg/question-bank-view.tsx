@@ -47,6 +47,7 @@ interface QuestionForm {
   options: string[];
   correctIndex: number;
   explanation: string;
+  timerSeconds: number;
 }
 
 const EMPTY_FORM: QuestionForm = {
@@ -56,6 +57,7 @@ const EMPTY_FORM: QuestionForm = {
   options: ["", "", "", ""],
   correctIndex: 0,
   explanation: "",
+  timerSeconds: 30,
 };
 
 type Scope = "official" | "mine" | "pending";
@@ -149,6 +151,7 @@ export function QuestionBankView() {
       options: [...q.options],
       correctIndex: q.correctIndex,
       explanation: q.explanation,
+      timerSeconds: q.timerSeconds ?? 30,
     });
     setDialogOpen(true);
   }
@@ -435,6 +438,11 @@ export function QuestionBankView() {
                     </span>
                     <DifficultyBadge difficulty={q.difficulty} />
                     <StatusBadge status={q.status} />
+                    {q.status === "PENDING" && (q.approvalVotes?.length ?? 0) > 0 && (
+                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                        {q.approvalVotes.length}/3 approve votes
+                      </span>
+                    )}
                     {scope === "official" && isStaff && (
                       <span className="text-[10px] text-muted-foreground">by {q.ownerUsername ?? "Game Master (official)"}</span>
                     )}
@@ -558,6 +566,40 @@ export function QuestionBankView() {
             </div>
 
             <div className="space-y-1.5">
+              <Label htmlFor="q-timer">Timer (seconds)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="q-timer"
+                  type="number"
+                  min={10}
+                  max={300}
+                  value={form.timerSeconds}
+                  onChange={(e) => {
+                    const v = Math.min(300, Math.max(10, Math.round(Number(e.target.value) || 10)));
+                    setForm({ ...form, timerSeconds: v });
+                  }}
+                  className="w-28"
+                />
+                <input
+                  type="range"
+                  min={10}
+                  max={300}
+                  step={5}
+                  value={form.timerSeconds}
+                  onChange={(e) => setForm({ ...form, timerSeconds: Number(e.target.value) })}
+                  className="flex-1"
+                  aria-label="Question timer seconds"
+                />
+                <span className="w-16 text-right text-xs tabular-nums text-muted-foreground">
+                  {form.timerSeconds >= 60
+                    ? `${Math.floor(form.timerSeconds / 60)}m${form.timerSeconds % 60 ? ` ${form.timerSeconds % 60}s` : ""}`
+                    : `${form.timerSeconds}s`}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">10 seconds minimum, 5 minutes maximum. Default 30s.</p>
+            </div>
+
+            <div className="space-y-1.5">
               <Label htmlFor="q-text">Question</Label>
               <Textarea
                 id="q-text"
@@ -643,7 +685,7 @@ export function QuestionBankView() {
           <DialogFooter className="gap-2">
             {!isStaff && (
               <Button variant="outline" className="gap-1.5" disabled={saving} onClick={() => void save(true)}>
-                <Send className="h-4 w-4" /> Submit for approval
+                <Send className="h-4 w-4" /> Submit for Approval to become Official
               </Button>
             )}
             <Button onClick={() => void save(false)} disabled={saving} className="gap-1.5">

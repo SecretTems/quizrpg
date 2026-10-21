@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
-import { Question, normalizeQuestion, attachOwnerUsernames } from "@/lib/models";
+import { Question, User, normalizeQuestion, attachOwnerUsernames } from "@/lib/models";
 import { getSessionUser } from "@/lib/auth";
 
 const VALID_DIFFICULTIES = ["EASY", "MEDIUM", "HARD", "EXPERT", "MASTER"];
@@ -11,6 +11,12 @@ export function escapeRegex(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Ids of users that still exist - used to filter ghost pending submissions. */
+export async function liveOwnerIds(): Promise<string[]> {
+  const docs = await User.find({}, { _id: 1 }).lean();
+  return docs.map((d) => d._id.toString());
+}
+
 export function validateQuestionInput(body: Record<string, unknown>) {
   const subject = String(body.subject ?? "").trim().slice(0, 40);
   const difficulty = String(body.difficulty ?? "").toUpperCase();
@@ -19,6 +25,7 @@ export function validateQuestionInput(body: Record<string, unknown>) {
   const options = optionsRaw.map((o) => String(o ?? "").trim().slice(0, 200));
   const correctIndex = Number(body.correctIndex);
   const explanation = String(body.explanation ?? "").trim().slice(0, 500);
+  const timerSeconds = Math.min(300, Math.max(10, Math.round(Number(body.timerSeconds ?? 30) || 30)));
 
   if (!subject) return { error: "Subject is required." } as const;
   if (!VALID_DIFFICULTIES.includes(difficulty)) return { error: "Invalid difficulty." } as const;
@@ -29,7 +36,7 @@ export function validateQuestionInput(body: Record<string, unknown>) {
   if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex >= options.length) {
     return { error: "Correct answer must be one of the options." } as const;
   }
-  return { subject, difficulty, text, options, correctIndex, explanation } as const;
+  return { subject, difficulty, text, options, correctIndex, explanation, timerSeconds } as const;
 }
 
 /**
@@ -56,6 +63,8 @@ export async function GET(req: Request) {
   else if (scope === "pending") {
     if (!isStaff(user.role)) return NextResponse.json({ error: "Admin access required." }, { status: 403 });
     filter.status = "PENDING";
+    // never list pending submissions whose owner was deleted (ghost entries)
+    filter.ownerId = { $in: await liveOwnerIds() };
   } else if (scope === "review") {
     if (!isStaff(user.role)) return NextResponse.json({ error: "Admin access required." }, { status: 403 });
     filter.status = { $in: ["PENDING", "REJECTED", "CUSTOM"] };

@@ -1,6 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Loader2, Pencil, Plus, Skull, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,6 +31,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { api, useAuth } from "@/lib/store";
 import { uploadImage } from "@/lib/images";
+import { SubjectPicker } from "@/components/quizrpg/subject-picker";
+import { ALL_MONSTER_MODIFIERS } from "@/lib/modifiers";
+import { cn } from "@/lib/utils";
 import type { IMonster, NormalizedCategory } from "@/lib/models";
 
 interface MonsterMakerProps {
@@ -45,7 +50,8 @@ interface MonsterForm {
   hp: string;
   atkMin: string;
   atkMax: string;
-  subjects: string;
+  subjects: string[];
+  modifiers: { id: string; chance: number; amount: number }[];
 }
 
 const EMPTY_FORM: MonsterForm = {
@@ -55,7 +61,8 @@ const EMPTY_FORM: MonsterForm = {
   hp: "60",
   atkMin: "6",
   atkMax: "9",
-  subjects: "",
+  subjects: [],
+  modifiers: [],
 };
 
 export function MonsterMaker({ categories, initialCategoryId, onReload }: MonsterMakerProps) {
@@ -83,7 +90,16 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [userSubjects, setUserSubjects] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // subjects available to the player (official + their own), merged with the category's subjects
+  useEffect(() => {
+    api<{ subjects: string[] }>("/api/subjects")
+      .then((d) => setUserSubjects(d.subjects))
+      .catch(() => setUserSubjects([]));
+  }, []);
+  const pickerSubjects = [...new Set([...(cat?.subjects ?? []), ...userSubjects])];
 
   async function persist(next: IMonster[]) {
     if (!cat) return;
@@ -103,7 +119,7 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
     setEditIndex(null);
     setForm({
       ...EMPTY_FORM,
-      subjects: cat?.subjects.join(", ") ?? "",
+      subjects: [...(cat?.subjects ?? [])],
     });
     setDialogOpen(true);
   }
@@ -119,7 +135,8 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
       hp: String(m.hp),
       atkMin: String(m.atkMin),
       atkMax: String(m.atkMax),
-      subjects: m.subjects.join(", "),
+      subjects: [...m.subjects],
+      modifiers: (m.modifiers ?? []).map((mod) => ({ ...mod })),
     });
     setDialogOpen(true);
   }
@@ -144,10 +161,7 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
     const hp = Math.min(9999, Math.max(10, Number(form.hp) || 0));
     const atkMin = Math.max(1, Number(form.atkMin) || 0);
     const atkMax = Math.max(atkMin, Number(form.atkMax) || 0);
-    const subjects = form.subjects
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const subjects = form.subjects.map((s) => s.trim()).filter(Boolean);
     if (!form.name.trim()) {
       toast({ title: "Name required", description: "Give the monster a name.", variant: "destructive" });
       return;
@@ -164,6 +178,7 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
       atkMin,
       atkMax,
       subjects,
+      modifiers: form.modifiers.filter((m) => m.chance > 0),
     };
     const next =
       editIndex === null
@@ -411,18 +426,105 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
               <Input id="m-atk-max" type="number" min={1} value={form.atkMax} onChange={(e) => setForm({ ...form, atkMax: e.target.value })} />
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="m-subjects">Question subjects</Label>
-              <Input
-                id="m-subjects"
-                value={form.subjects}
-                onChange={(e) => setForm({ ...form, subjects: e.target.value })}
-                placeholder="English, History (comma separated)"
-                maxLength={200}
+              <Label>Question subjects</Label>
+              <SubjectPicker
+                available={pickerSubjects}
+                selected={form.subjects}
+                onChange={(subjects) => setForm({ ...form, subjects })}
               />
               <p className="text-[11px] text-muted-foreground">
-                The battle draws this monster&apos;s questions from these subjects. Leave blank to use the
+                The battle draws this monster&apos;s questions from these subjects. Select none to use the
                 category&apos;s subjects.
               </p>
+            </div>
+
+            <div className="col-span-2 space-y-1.5">
+              <Label>Modifiers (optional)</Label>
+              <div className="space-y-2">
+                {ALL_MONSTER_MODIFIERS.map((mod) => {
+                  const entry = form.modifiers.find((m) => m.id === mod.id);
+                  const active = Boolean(entry);
+                  return (
+                    <div
+                      key={mod.id}
+                      className={cn(
+                        "rounded-lg border-2 p-2.5 transition-all",
+                        active ? "border-primary/60 bg-primary/5" : "border-border/60",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 text-left"
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            modifiers: active
+                              ? f.modifiers.filter((m) => m.id !== mod.id)
+                              : [...f.modifiers, { id: mod.id, chance: mod.defaultChance, amount: mod.amount }],
+                          }))
+                        }
+                        aria-pressed={active}
+                      >
+                        <span aria-hidden="true">{mod.emoji}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-xs font-bold">{mod.label}</span>
+                          <span className="block text-[11px] text-muted-foreground">{mod.description}</span>
+                        </span>
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
+                            active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {active ? "On" : "Off"}
+                        </span>
+                      </button>
+                      {active && entry && (
+                        <div className="mt-2 flex items-center gap-2 pl-7">
+                          <Label className="w-24 shrink-0 text-[11px]">Trigger chance</Label>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={entry.chance}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                modifiers: f.modifiers.map((m) =>
+                                  m.id === mod.id ? { ...m, chance: Number(e.target.value) } : m,
+                                ),
+                              }))
+                            }
+                            className="flex-1"
+                            aria-label={`${mod.label} trigger chance`}
+                          />
+                          <span className="w-10 text-right text-[11px] font-semibold tabular-nums">{entry.chance}%</span>
+                          {mod.amount > 0 && (
+                            <>
+                              <Label className="w-20 shrink-0 text-[11px]">Amount</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={entry.amount}
+                                onChange={(e) =>
+                                  setForm((f) => ({
+                                    ...f,
+                                    modifiers: f.modifiers.map((m) =>
+                                      m.id === mod.id ? { ...m, amount: Math.max(0, Number(e.target.value) || 0) } : m,
+                                    ),
+                                  }))
+                                }
+                                className="h-7 w-20 text-xs"
+                                aria-label={`${mod.label} amount`}
+                              />
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 

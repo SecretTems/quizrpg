@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/db";
-import { Battle, Question, User, normalizeBattle, normalizeQuestion, type BattleMonster } from "@/lib/models";
+import { Battle, Category, Question, User, normalizeBattle, normalizeQuestion, type BattleMonster } from "@/lib/models";
 import { getSessionUser } from "@/lib/auth";
 import { getTier, computeAnswer, levelProgress, getMode, infiniteWaveBonus } from "@/lib/game";
 import type { BattleModeId, EnemyTier } from "@/lib/game";
 import { drawWave, newlyUnlockedTier, toBattleQuestion } from "@/lib/battle";
+import { applyBattleWear } from "@/lib/durability";
 import type { AnswerResultDTO, BattleStateDTO } from "@/lib/types";
 import type { Difficulty } from "@/lib/game";
 
@@ -55,6 +56,15 @@ export async function POST(req: Request, { params }: Params) {
   // user-made (custom/pending) questions are practice-only: no damage, no XP,
   // no score and no stats - they don't affect the battle either way
   const isCustom = question.status !== "OFFICIAL";
+
+  // for battles against a player-created category, the creator's custom
+  // questions stay eligible when drawing the next wave
+  const ownerIds = battleDoc.categoryId
+    ? await (async () => {
+        const cat = await Category.findById(battleDoc.categoryId).select("ownerId").lean();
+        return cat?.ownerId ? [String(cat.ownerId)] : [];
+      })()
+    : [];
   const outcome = isCustom
     ? {
         correct: wasCorrect,
@@ -183,6 +193,7 @@ export async function POST(req: Request, { params }: Params) {
         battleDoc.mode as BattleModeId,
         battleDoc.wave,
         allIds.slice(0, cursor),
+        ownerIds,
       );
       if (fresh.length > 0) {
         allIds = [...allIds.slice(0, cursor), ...fresh.map((q) => q.id)];
@@ -202,6 +213,7 @@ export async function POST(req: Request, { params }: Params) {
         battleDoc.mode as BattleModeId,
         nextWave,
         allIds,
+        ownerIds,
       );
       if (wave.length > 0) {
         allIds = [...allIds, ...wave.map((q) => q.id)];
@@ -231,10 +243,21 @@ export async function POST(req: Request, { params }: Params) {
     cursor,
     status,
     questions: allIds,
-    questionDeadlineAt: Date.now() + 30_000,
+    questionDeadlineAt: Date.now() + (nextQuestion?.timerSeconds ?? 30) * 1000,
   });
   await battleDoc.save();
   const updatedBattle = normalizeBattle(battleDoc.toObject());
+
+  // --- durability: weapon wears on landed hits, armor on hits taken ---
+  const durability = await applyBattleWear(
+    User,
+    user.id,
+    outcome.damageDealt > 0,
+    outcome.damageTaken > 0,
+  );
+  if (durability.weaponBroken) {
+    console.log(`[durability] weapon broke for user ${user.id}`);
+  }
 
   // --- level-up detection ---
   const afterUser = await User.findById(user.id).lean();

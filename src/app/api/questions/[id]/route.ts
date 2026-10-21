@@ -5,6 +5,8 @@ import { Question, normalizeQuestion, attachOwnerUsernames } from "@/lib/models"
 import { getSessionUser } from "@/lib/auth";
 import { validateQuestionInput, isStaff } from "../route";
 
+const APPROVAL_VOTES_REQUIRED = 3;
+
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: Request, { params }: Params) {
@@ -28,11 +30,34 @@ export async function PATCH(req: Request, { params }: Params) {
   const action = String(body.action ?? "");
   if (action === "approve" || action === "reject") {
     if (!staff) return NextResponse.json({ error: "Admin access required." }, { status: 403 });
-    const status = action === "approve" ? "OFFICIAL" : "REJECTED";
-    await Question.findByIdAndUpdate(id, {
-      $set: { status, reviewNote: String(body.reviewNote ?? "").trim().slice(0, 300) },
-    });
-    return NextResponse.json({ ok: true, status });
+    if (action === "reject") {
+      // a single rejection sends it back with the note
+      await Question.findByIdAndUpdate(id, {
+        $set: {
+          status: "REJECTED",
+          reviewNote: String(body.reviewNote ?? "").trim().slice(0, 300),
+          approvalVotes: [],
+          rejectionVotes: [],
+        },
+      });
+      return NextResponse.json({ ok: true, status: "REJECTED" });
+    }
+
+    // approve = a vote; reaching APPROVAL_VOTES_REQUIRED votes makes it official
+    const updated = await Question.findByIdAndUpdate(
+      id,
+      {
+        $addToSet: { approvalVotes: user.id },
+        $pull: { rejectionVotes: user.id },
+      },
+      { new: true },
+    ).lean();
+    if (!updated) return NextResponse.json({ error: "Question not found." }, { status: 404 });
+    if (updated.approvalVotes.length >= APPROVAL_VOTES_REQUIRED) {
+      await Question.findByIdAndUpdate(id, { $set: { status: "OFFICIAL", reviewNote: "" } });
+      return NextResponse.json({ ok: true, status: "OFFICIAL" });
+    }
+    return NextResponse.json({ ok: true, status: "PENDING", votes: updated.approvalVotes.length, needed: APPROVAL_VOTES_REQUIRED });
   }
 
   // --- content edit ---
@@ -68,6 +93,8 @@ export async function PATCH(req: Request, { params }: Params) {
         ...input,
         status: newStatus,
         reviewNote: newStatus === "PENDING" ? "" : question.reviewNote,
+        // a fresh submission starts with no votes
+        ...(newStatus === "PENDING" ? { approvalVotes: [], rejectionVotes: [] } : {}),
       },
     },
     { new: true },

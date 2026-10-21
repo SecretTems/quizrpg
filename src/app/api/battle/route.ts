@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/db";
-import {
-  Battle,
-  Category,
-  Question,
-  normalizeBattle,
+import { Battle, Category, Question, User, normalizeBattle,
   normalizeCategory,
   normalizeQuestion,
   type NormalizedCategory,
@@ -14,6 +10,7 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { getTier, playerMaxHp, levelProgress, ENEMY_TIERS, BATTLE_MODES, getMode, isBattleModeId } from "@/lib/game";
 import { drawWave, toBattleState, toBattleQuestion } from "@/lib/battle";
+import { applyAccessoryWear } from "@/lib/durability";
 import type { BattleModeId } from "@/lib/game";
 
 /** Resume: return the player's ongoing battle, if any. */
@@ -132,7 +129,8 @@ export async function POST(req: Request) {
     );
   }
 
-  // category battles draw from the first monster's own subject list
+  // category battles draw from the first monster's own subject list, and for
+  // player-created categories the creator's custom questions join the pool
   const questions = await drawWave(
     category ? categorySubjects : subject,
     user.id,
@@ -140,6 +138,7 @@ export async function POST(req: Request) {
     battleMode.id,
     1,
     [],
+    category && category.ownerId ? [category.ownerId] : [],
   );
   if (questions.length === 0) {
     return NextResponse.json(
@@ -149,6 +148,10 @@ export async function POST(req: Request) {
   }
 
   const enemyMaxHp = category ? firstMonster.hp : tier.maxHp;
+
+  // --- durability: accessories wear per adventure, scaled by difficulty ---
+  await applyAccessoryWear(User, user.id, battleMode.id);
+
   const created = await Battle.create({
     userId: user.id,
     subject: category ? category.subjects.join(", ") || "ALL" : subject,
@@ -172,7 +175,7 @@ export async function POST(req: Request) {
     playerMaxHp: playerMaxHp(level),
     playerHp: playerMaxHp(level),
     questions: questions.map((q) => q.id),
-    questionDeadlineAt: Date.now() + 30_000,
+    questionDeadlineAt: Date.now() + (questions[0]?.timerSeconds ?? 30) * 1000,
   });
 
   return NextResponse.json(
