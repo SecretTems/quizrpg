@@ -74,6 +74,16 @@ function PasswordInput({ id, name, value, onChange, required, placeholder, autoC
   );
 }
 
+/**
+ * Security notice: admins/super admins who sign in without 2FA configured are
+ * warned to enable it in Profile → Two-factor authentication.
+ */
+function warnIfNo2FA(user: SafeUser) {
+  if ((user.role === "ADMIN" || user.role === "SUPER_ADMIN") && !user.twoFactorEnabled) {
+    window.dispatchEvent(new CustomEvent("quizrpg:2fa-warning", { detail: user.displayName }));
+  }
+}
+
 export function AuthScreen() {
   const setUser = useAuth((s) => s.setUser);
   const { toast } = useToast();
@@ -111,6 +121,7 @@ export function AuthScreen() {
         return;
       }
       setUser(data.user);
+      warnIfNo2FA(data.user);
       toast({ title: "Welcome back!", description: `Glory awaits, ${data.user.displayName}.` });
     } catch (err: any) {
       if (err?.lockedUntil) {
@@ -147,6 +158,7 @@ export function AuthScreen() {
       setUser(data.user);
       setPendingToken(null);
       setTotpCode("");
+      warnIfNo2FA(data.user);
       toast({ title: "Welcome back!", description: `Glory awaits, ${data.user.displayName}.` });
     } catch (err: any) {
       if (err?.requires2FA) {

@@ -72,6 +72,8 @@ export interface IUser extends Document {
   loginFailures: number;
   /** epoch ms until which the account is locked after too many failures */
   lockoutUntil: number | null;
+  /** how many times this account has been locked (drives the escalating cooldown) */
+  lockoutCount: number;
   /** epoch ms of the last daily-bonus claim (null = never claimed) */
   lastDailyClaimAt: number | null;
   /** current consecutive daily-claim streak (resets if a day is missed) */
@@ -126,6 +128,7 @@ const UserSchema = new Schema<IUser>(
     twoFactorSecret: { type: String, default: null },
     loginFailures: { type: Number, default: 0, min: 0 },
     lockoutUntil: { type: Number, default: null },
+    lockoutCount: { type: Number, default: 0, min: 0 },
     lastDailyClaimAt: { type: Number, default: null },
     dailyStreak: { type: Number, default: 0, min: 0 },
   },

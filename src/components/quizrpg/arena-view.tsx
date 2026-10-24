@@ -37,6 +37,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   const { toast } = useToast();
 
   const [subjects, setSubjects] = useState<string[]>([]);
+  void subjects; void setSubjects; // kept for the battle-start payload shape; subject grid now comes from the category
   const [subject, setSubject] = useState<string>("ALL");
   const [tier, setTier] = useState<number>(1);
   const [mode, setMode] = useState<BattleModeId>("EASY");
@@ -45,8 +46,6 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   const [categorySearch, setCategorySearch] = useState("");
   /** Play modal category filter: official vs player-made */
   const [categoryFilter, setCategoryFilter] = useState<"OFFICIAL" | "CUSTOM">("OFFICIAL");
-  /** search text for the subject grid in the Play modal */
-  const [subjectSearch, setSubjectSearch] = useState("");
   /** selected DB Adventure category opponent - overrides the static tier roster */
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleStateDTO | null>(null);
@@ -81,6 +80,8 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   });
   /** first category (or the selected one) starts expanded */
   const openCategoryKey = categoryId ?? visibleCategories[0]?.id ?? "";
+  /** the currently picked category object (drives the "subjects in this category" panel) */
+  const selectedCategory = categories.find((c) => c.id === categoryId) ?? null;
 
   /**
    * Re-fetch the full profile snapshot (gold/gems/backpack/equipment) that the
@@ -284,9 +285,6 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                 {visibleCategories.map((c) => {
                   const key = c.id;
                   const active = categoryId === c.id;
-                  const monsters = c.monsters?.length ? c.monsters : null;
-                  const fallbackMonster = { name: c.enemy.name, emoji: c.enemy.emoji, image: undefined, hp: c.enemy.baseHp, atkMin: c.enemy.atkMin, atkMax: c.enemy.atkMax, subjects: c.subjects };
-                  const lineup = monsters ?? [fallbackMonster];
                   return (
                     <AccordionItem key={key} value={key} className="rounded-lg border-none">
                       <div
@@ -308,30 +306,50 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                             {c.icon ? <img src={c.icon} alt="" className="h-7 w-7 rounded object-cover" /> : c.monsters?.[0]?.emoji || c.enemy.emoji}
                           </span>
                           <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={c.description || c.name}>
-                            [{c.name}] [{c.status === "OFFICIAL" ? "Official" : "Custom"}]
-                            <span className="hidden text-xs font-normal text-muted-foreground sm:inline">
-                              {" "}- {c.description || "no description"}
-                            </span>
+                            {c.name}
+                          </span>
+                          <span
+                            className={cn(
+                              "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                              c.status === "OFFICIAL"
+                                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                            )}
+                          >
+                            {c.status === "OFFICIAL" ? "Official" : "Custom"}
                           </span>
                         </button>
                         <AccordionTrigger className="h-8 w-8 shrink-0 justify-center rounded-md p-0 hover:no-underline [&>svg]:h-4 [&>svg]:w-4" />
                       </div>
                       <AccordionContent className="px-1 pb-2">
-                        <div className="flex gap-2 overflow-x-auto pb-1">
-                          {lineup.map((m, mi) => (
-                            <div
-                              key={mi}
-                              className="flex w-28 shrink-0 flex-col items-center gap-1 rounded-xl border border-border bg-card p-2 text-center"
-                            >
-                              <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-3xl" aria-hidden="true">
-                                {m.image ? <img src={m.image} alt="" className="h-full w-full object-cover" /> : m.emoji}
-                              </span>
-                              <span className="w-full truncate text-[10px] font-bold" title={m.name}>{m.name}</span>
-                              <span className="flex w-full flex-wrap justify-center gap-1 text-[9px] font-bold">
-                                <span className="rounded bg-red-600/15 px-1 py-0.5 text-red-600 dark:text-red-400">HP {m.hp}</span>
-                                <span className="rounded bg-orange-600/15 px-1 py-0.5 text-orange-600 dark:text-orange-400">ATK {m.atkMin}-{m.atkMax}</span>
-                              </span>
-                            </div>
+                        {c.description && (
+                          <p className="mb-2 px-2 text-[11px] text-muted-foreground">{c.description}</p>
+                        )}
+                        {(c.monsters?.length ?? 0) > 0 && (
+                          <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+                            {c.monsters!.map((m, mi) => (
+                              <div
+                                key={mi}
+                                className="flex w-28 shrink-0 flex-col items-center gap-1 rounded-xl border border-border bg-card p-2 text-center"
+                              >
+                                <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-3xl" aria-hidden="true">
+                                  {m.image ? <img src={m.image} alt="" className="h-full w-full object-cover" /> : m.emoji}
+                                </span>
+                                <span className="w-full truncate text-[10px] font-bold" title={m.name}>{m.name}</span>
+                                <span className="flex w-full flex-wrap justify-center gap-1 text-[9px] font-bold">
+                                  <span className="rounded bg-red-600/15 px-1 py-0.5 text-red-600 dark:text-red-400">HP {m.hp}</span>
+                                  <span className="rounded bg-orange-600/15 px-1 py-0.5 text-orange-600 dark:text-orange-400">ATK {m.atkMin}-{m.atkMax}</span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap items-center gap-1.5 px-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Subjects:</span>
+                          {c.subjects.map((s) => (
+                            <span key={s} className="rounded border border-border bg-card px-1.5 py-0.5 text-[10px] font-semibold">
+                              {s}
+                            </span>
                           ))}
                         </div>
                       </AccordionContent>
@@ -342,41 +360,31 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
             )}
           </div>
 
-          {/* bottom panel: subjects + difficulty selector */}
-          <div className="grid gap-3 border-t border-border/60 pt-3 sm:grid-cols-2">
-            <div>
-              <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                <h4 className="text-sm font-bold">Subjects</h4>
-                <div className="relative ml-auto min-w-[140px] flex-1 sm:max-w-[200px]">
-                  <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                  <Input
-                    value={subjectSearch}
-                    onChange={(e) => setSubjectSearch(e.target.value)}
-                    placeholder="Search subjects..."
-                    className="h-7 pl-7 text-xs"
-                  />
-                </div>
-              </div>
-              <div className="flex max-h-28 min-h-[64px] flex-wrap content-start gap-1.5 overflow-y-auto">
-                {(subject === "ALL" ? [{ id: "ALL", label: "All Subjects" }] : []).concat(
-                  subjects.filter((s) => s.toLowerCase().includes(subjectSearch.trim().toLowerCase())).map((s) => ({ id: s, label: s })),
-                ).map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => setSubject(s.id)}
-                    aria-pressed={subject === s.id}
-                    className={cn(
-                      "flex min-h-9 items-center rounded-lg border-2 px-3 py-1 text-xs font-semibold transition-all",
-                      subject === s.id ? "border-primary bg-primary/10" : "border-border hover:border-primary/50 hover:bg-accent",
-                    )}
-                  >
-                    {s.label === "All Subjects" ? "🎲 " : ""}{s.label === "All Subjects" ? "All Subjects" : s.label}
-                  </button>
-                ))}
-              </div>
+          {/* bottom panel: category subjects | separator | difficulty selector */}
+          <div className="flex flex-col gap-3 border-t border-border/60 pt-3 sm:flex-row">
+            <div className="min-w-0 flex-1">
+              <h4 className="mb-1.5 text-sm font-bold">Subjects in this category</h4>
+              {selectedCategory ? (
+                selectedCategory.subjects.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedCategory.subjects.map((s) => (
+                      <span key={s} className="rounded-lg border-2 border-primary/40 bg-primary/5 px-3 py-1 text-xs font-semibold">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No subjects listed - questions from every pool may appear.</p>
+                )
+              ) : (
+                <p className="text-xs text-muted-foreground">Select a category above to see its subjects.</p>
+              )}
             </div>
 
-            <div>
+            <div className="hidden w-px shrink-0 bg-border sm:block" aria-hidden="true" />
+            <div className="h-px w-full shrink-0 bg-border sm:hidden" aria-hidden="true" />
+
+            <div className="w-full sm:w-64">
               <h4 className="mb-1.5 text-sm font-bold">Difficulty</h4>
               {(() => {
                 const unlocked = BATTLE_MODES.filter((m) => level >= m.unlockLevel);
@@ -384,11 +392,11 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                 const current = unlocked[idx] ?? unlocked[0] ?? BATTLE_MODES[0];
                 return (
                   <div className="space-y-1.5">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center gap-2">
                       <Button
                         size="icon"
-                        variant="ghost"
-                        className="h-9 w-9 shrink-0"
+                        variant="outline"
+                        className="h-11 w-9 shrink-0"
                         disabled={idx <= 0}
                         aria-label="Previous difficulty"
                         onClick={() => {
@@ -412,14 +420,14 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                             if (next) setMode(next.id);
                           }
                         }}
-                        className="flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-xl border-2 border-primary bg-primary/10 font-display text-2xl"
+                        className="flex min-h-11 flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-primary bg-primary/10 px-2 text-center font-display text-sm leading-tight"
                       >
                         {current.label}
                       </div>
                       <Button
                         size="icon"
-                        variant="ghost"
-                        className="h-9 w-9 shrink-0"
+                        variant="outline"
+                        className="h-11 w-9 shrink-0"
                         disabled={idx >= unlocked.length - 1}
                         aria-label="Next difficulty"
                         onClick={() => {
@@ -430,13 +438,8 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                         ▶
                       </Button>
                     </div>
-                    <div className="flex flex-wrap justify-center gap-1.5 text-[10px] font-bold">
-                      <span className="rounded bg-[color-mix(in_oklab,var(--xp)_18%,transparent)] px-2 py-0.5 text-[var(--xp)]">+{current.rewardXp} XP</span>
-                      <span className="rounded bg-border/60 px-2 py-0.5 text-muted-foreground">{current.questionCount} questions</span>
-                      {current.description && (
-                        <span className="w-full text-center text-[10px] font-normal text-muted-foreground">{current.description}</span>
-                      )}
-                    </div>
+                    <p className="text-center text-[11px] text-muted-foreground">{current.description}</p>
+                    <p className="text-center text-xs font-bold text-[var(--xp)]">+{current.rewardXp} XP bonus</p>
                   </div>
                 );
               })()}
@@ -445,10 +448,20 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
 
           <DialogFooter className="gap-2 border-t border-border/60 pt-3 sm:justify-between">
             <Button variant="outline" onClick={() => setShowPlayModal(false)}>Cancel</Button>
-            <Button className="gap-2" disabled={starting} onClick={() => void startBattle(subject, tier, mode, categoryId)}>
-              {starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />}
-              {starting ? "Entering…" : "Start Adventure"}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                disabled={starting}
+                onClick={() => void startBattle("ALL", tier, "INFINITE", categoryId)}
+                title="Endless waves that keep getting harder"
+              >
+                ♾️ Infinite Mode
+              </Button>
+              <Button className="gap-2" disabled={starting} onClick={() => void startBattle(subject, tier, mode, categoryId)}>
+                {starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />}
+                {starting ? "Entering…" : "Start Adventure"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

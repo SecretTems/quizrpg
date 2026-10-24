@@ -1,9 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, ShieldCheck, Trash2, UserCog, LibraryBig, Swords, Users, Search, Check, Clock, X } from "lucide-react";
+import { Loader2, ShieldCheck, Trash2, UserCog, Pencil, ImageOff, LibraryBig, Swords, Users, Search, Check, Clock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +34,9 @@ interface AdminUser {
   id: string;
   username: string;
   displayName: string;
+  avatar?: string;
   role: string;
+  emailVerified?: boolean;
   xp: number;
   level: number;
   battlesWon: number;
@@ -53,6 +64,11 @@ export function AdminView() {
 
   const [categories, setCategories] = useState<NormalizedCategory[]>([]);
   const [catLoading, setCatLoading] = useState(false);
+
+  // moderation dialog: edit a player's display name / strip their avatar
+  const [editTarget, setEditTarget] = useState<AdminUser | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editBusy, setEditBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -160,6 +176,31 @@ export function AdminView() {
       toast({ title: "Delete failed", description: err instanceof Error ? err.message : "", variant: "destructive" });
     } finally {
       setBusyId(null);
+    }
+  }
+
+  function openEditUser(u: AdminUser) {
+    setEditTarget(u);
+    setEditName(u.displayName);
+  }
+
+  async function saveEdit(stripAvatar: boolean) {
+    if (!editTarget) return;
+    setEditBusy(true);
+    try {
+      const body: Record<string, unknown> = { displayName: editName.trim() };
+      if (stripAvatar) body.avatar = "";
+      await api(`/api/admin/users/${editTarget.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      toast({
+        title: stripAvatar ? "Profile picture removed" : "Profile updated",
+        description: `@${editTarget.username} has been moderated.`,
+      });
+      setEditTarget(null);
+      await load();
+    } catch (err) {
+      toast({ title: "Moderation failed", description: err instanceof Error ? err.message : "", variant: "destructive" });
+    } finally {
+      setEditBusy(false);
     }
   }
 
@@ -323,6 +364,11 @@ export function AdminView() {
                         <p className="font-bold">
                           {u.role === "SUPER_ADMIN" ? "👑 " : u.role === "ADMIN" ? "🛡️ " : ""}{u.displayName}
                           {isMe && <span className="ml-1.5 rounded bg-primary/20 px-1 py-0.5 text-[10px] uppercase text-primary">You</span>}
+                          {u.emailVerified === false && (
+                            <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[10px] uppercase text-muted-foreground" title="This account has not verified its email yet">
+                              Unverified
+                            </span>
+                          )}
                         </p>
                         <p className="text-[11px] text-muted-foreground">@{u.username}</p>
                       </td>
@@ -332,6 +378,17 @@ export function AdminView() {
                       <td className="px-3 py-3 tabular-nums">{u.questionCount}</td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={u.role === "SUPER_ADMIN" || busyId === u.id}
+                            onClick={() => openEditUser(u)}
+                            aria-label={`Edit profile of ${u.username}`}
+                            title="Edit display name / remove profile picture"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -385,9 +442,54 @@ export function AdminView() {
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <ShieldCheck className="h-3.5 w-3.5" />
         {isSuper
-          ? "As super admin you can promote/demote admins and delete accounts. Admins manage content and approvals."
-          : "Admins manage questions and approvals. Promoting/demoting and deleting accounts is reserved for super admins (👑)."}
+          ? "As super admin you can promote/demote admins, delete accounts and moderate profiles. Admins manage content and approvals."
+          : "Admins manage questions, approvals and profile moderation. Promoting/demoting and deleting accounts is reserved for super admins (👑)."}
       </p>
+
+      {/* moderation dialog: edit display name / remove inappropriate profile picture */}
+      <Dialog open={Boolean(editTarget)} onOpenChange={(open) => { if (!open) setEditTarget(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Moderate profile</DialogTitle>
+            <DialogDescription>
+              Editing @{editTarget?.username}. Use this to fix or remove anything inappropriate.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              {editTarget?.avatar ? (
+                <img src={editTarget.avatar} alt="" className="h-14 w-14 rounded-full border border-border object-cover" />
+              ) : (
+                <span className="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-muted/50 text-2xl" aria-hidden="true">
+                  {editTarget?.role === "PLAYER" ? "🧑‍🎓" : "🛡️"}
+                </span>
+              )}
+              {editTarget?.avatar && (
+                <Button variant="outline" size="sm" className="gap-1.5 text-destructive" disabled={editBusy} onClick={() => void saveEdit(true)}>
+                  <ImageOff className="h-3.5 w-3.5" /> Remove picture
+                </Button>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-edit-name">Display name</Label>
+              <Input
+                id="admin-edit-name"
+                value={editName}
+                maxLength={30}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={editBusy} onClick={() => setEditTarget(null)}>
+              Cancel
+            </Button>
+            <Button className="gap-1.5" disabled={editBusy || !editName.trim()} onClick={() => void saveEdit(false)}>
+              {editBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

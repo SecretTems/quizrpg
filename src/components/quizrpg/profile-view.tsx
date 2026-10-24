@@ -353,16 +353,27 @@ export function ProfileView({ onStatsChanged }: { onStatsChanged: () => void }) 
               <p className="text-sm font-semibold">Sign out</p>
               <p className="text-xs text-muted-foreground">Your progress is saved automatically.</p>
             </div>
-            <Button
-              variant="outline"
-              className="gap-1.5"
-              onClick={async () => {
-                await logout();
-                onStatsChanged();
-              }}
-            >
-              <LogOut className="h-4 w-4" /> Log out
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="gap-1.5">
+                  <LogOut className="h-4 w-4" /> Log out
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Log out?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Your progress is saved automatically, but any ongoing battle will be paused until you return.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Stay</AlertDialogCancel>
+                  <AlertDialogAction onClick={async () => { await logout(); onStatsChanged(); }}>
+                    Log out
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
           <div className="flex flex-wrap items-center gap-3 border-t border-border/50 pt-3">
             <div className="min-w-0 flex-1">

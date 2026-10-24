@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       if (!doc?.twoFactorSecret || !totpCode || !verifyTotpCode(doc.twoFactorSecret, totpCode)) {
         return NextResponse.json({ error: "Invalid 2FA code.", requires2FA: true }, { status: 401 });
       }
-      await User.updateOne({ _id: user._id }, { $set: { loginFailures: 0, lockoutUntil: null } });
+      await User.updateOne({ _id: user._id }, { $set: { loginFailures: 0, lockoutUntil: null, lockoutCount: 0 } });
       await setSessionCookie(user._id.toString());
       return NextResponse.json({ user: normalizeUser(user) });
     }
@@ -63,15 +63,22 @@ export async function POST(req: Request) {
       // username, but also does not reveal which usernames exist any faster).
       if (user) {
         const failures = (user.loginFailures ?? 0) + 1;
-        const lockout = failures >= MAX_LOGIN_ATTEMPTS ? Date.now() + LOCKOUT_MS : null;
+        // escalating cooldown: each lockout lasts longer than the previous one
+        // so repeated attacks are penalized progressively
+        const previous = user.lockoutUntil && user.lockoutUntil > Date.now() ? user.lockoutUntil : null;
+        const priorCount = user.lockoutCount ?? 0;
+        const lockoutCount = priorCount + 1;
+        const multiplier = Math.min(2 ** Math.max(0, lockoutCount - 1), 16); // 1x, 2x, 4x, 8x, then capped at 16x
+        const duration = LOCKOUT_MS * multiplier;
+        const lockout = failures >= MAX_LOGIN_ATTEMPTS ? Date.now() + duration : null;
         await User.updateOne(
           { _id: user._id },
-          { $set: { loginFailures: failures, ...(lockout ? { lockoutUntil: lockout } : {}) } },
+          { $set: { loginFailures: failures, lockoutCount, ...(lockout ? { lockoutUntil: lockout } : {}) } },
         );
         if (lockout) {
           return NextResponse.json(
             {
-              error: `Too many failed attempts. This account is locked for ${Math.ceil(LOCKOUT_MS / 60000)} minutes.`,
+              error: `Too many failed attempts. This account is locked for ${Math.ceil(duration / 60000)} minutes.`,
               lockedUntil: lockout,
             },
             { status: 429 },
@@ -121,7 +128,7 @@ export async function POST(req: Request) {
       }
     }
 
-    await User.updateOne({ _id: user._id }, { $set: { loginFailures: 0, lockoutUntil: null } });
+    await User.updateOne({ _id: user._id }, { $set: { loginFailures: 0, lockoutUntil: null, lockoutCount: 0 } });
     await setSessionCookie(user._id.toString());
     return NextResponse.json({ user: normalizeUser(user) });
   } catch (err) {

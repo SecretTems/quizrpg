@@ -28,6 +28,7 @@ export async function POST(req: Request) {
     const normalized: (string | null)[] = [null, null, null];
     const doc = await User.findById(user.id).lean();
     const backpack = (doc?.backpack ?? {}) as Record<string, { qty?: number } | undefined>;
+    const needed = new Map<string, number>();
     for (let i = 0; i < requested.length; i++) {
       const id = String(requested[i] ?? "");
       if (!id) continue;
@@ -38,6 +39,15 @@ export async function POST(req: Request) {
       if (!backpack[id]) {
         return NextResponse.json({ error: `You don't own "${def.name}".` }, { status: 400 });
       }
+      // a slot holds ONE unit - the loadout can never reserve more than the stack
+      const count = (needed.get(id) ?? 0) + 1;
+      if (count > (backpack[id]?.qty ?? 0)) {
+        return NextResponse.json(
+          { error: `Only ${backpack[id]?.qty}× "${def.name}" in storage - you can't fill ${count} slots with it.` },
+          { status: 400 },
+        );
+      }
+      needed.set(id, count);
       normalized[i] = id;
     }
     const updated = await User.findByIdAndUpdate(

@@ -259,18 +259,26 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
                       {consumableEntries.map(([id, entry]) => {
                         const d = itemById(id);
                         if (!d) return null;
+                        // a slot holds one unit - grey out the option once every
+                        // owned unit is already sitting in another slot
+                        const usedInOtherSlots = loadout.filter((v, i) => v === id && i !== pickingSlot).length;
+                        const owned = entry.qty ?? 1;
+                        const exhausted = usedInOtherSlots >= owned;
                         return (
                           <button
                             key={id}
                             type="button"
-                            disabled={busy}
-                            title={`${d.name} ×${entry.qty ?? 1}`}
+                            disabled={busy || exhausted}
+                            title={exhausted ? `All ${owned}× already in your loadout` : `${d.name} ×${owned}`}
                             onClick={() => setLoadoutSlot(pickingSlot, id)}
-                            className="flex items-center gap-1 rounded-md border border-border bg-card px-1.5 py-1 text-[10px] font-semibold hover:border-primary"
+                            className={cn(
+                              "flex items-center gap-1 rounded-md border border-border bg-card px-1.5 py-1 text-[10px] font-semibold hover:border-primary",
+                              exhausted && "cursor-not-allowed opacity-40 hover:border-border",
+                            )}
                           >
                             <ItemTile itemId={id} className="h-6 w-6" />
                             <span className="max-w-24 truncate">{d.name}</span>
-                            <span className="text-muted-foreground">×{entry.qty ?? 1}</span>
+                            <span className="text-muted-foreground">×{owned}</span>
                           </button>
                         );
                       })}

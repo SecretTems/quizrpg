@@ -13,6 +13,7 @@ import { LeaderboardView } from "@/components/quizrpg/leaderboard-view";
 import { ProfileView } from "@/components/quizrpg/profile-view";
 import { AdminView } from "@/components/quizrpg/admin-view";
 import { HowToPlayDialog } from "@/components/quizrpg/how-to-play";
+import { useToast } from "@/hooks/use-toast";
 
 type Tab = "arena" | "bank" | "leaderboard" | "profile" | "admin";
 
@@ -26,9 +27,27 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 export function AppShell() {
   const user = useAuth((s) => s.user);
   const refreshUser = useAuth((s) => s.refresh);
+  const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const [tab, setTab] = useState<Tab>("arena");
   const [tutorialOpen, setTutorialOpen] = useState(false);
+
+  // Warn admins/super admins who signed in WITHOUT 2FA configured - the login
+  // step skips the code prompt for them, which is a real security gap until
+  // they enable it in Profile.
+  useEffect(() => {
+    const onTwoFaWarning = (e: Event) => {
+      const name = (e as CustomEvent<string>).detail;
+      toast({
+        title: "⚠️ Security risk: 2FA not set up",
+        description: `${name}, your admin account has no two-factor authentication. Set it up in Profile → Two-factor authentication.`,
+        variant: "destructive",
+        duration: 10000,
+      });
+    };
+    window.addEventListener("quizrpg:2fa-warning", onTwoFaWarning);
+    return () => window.removeEventListener("quizrpg:2fa-warning", onTwoFaWarning);
+  }, [toast]);
 
   // Auto-show the tutorial once for brand-new players, then never again.
   // (must run before the early return so the hook order stays stable)
