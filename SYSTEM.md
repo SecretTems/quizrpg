@@ -75,6 +75,10 @@ The same pattern applies to starting battles, equipping items, gacha pulls, admi
 ### Convenience and safety
 - **Auto-save/resume:** a battle is a database document, so closing the tab mid-fight doesn't lose it — the arena offers "resume" when you come back. Per-question deadlines are stored on the battle so you can't refresh for a fresh timer.
 - **Idle logout:** after 15 minutes without input, the player is logged out; one minute before, a "Still there?" countdown dialog offers to stay.
+- **Self-cleaning registrations:** accounts that never verify their email are **auto-deleted after 24 hours**. The janitor runs lazily alongside login traffic (at most every 10 minutes), so there is no cron job to babysit — bot sign-ups simply cease to exist.
+
+### Content authoring
+- **Multi-subject questions:** a question can belong to **several subjects at once**. The Question Maker uses the same chip-based multi-select used elsewhere (tap to add, X to remove, plus custom subject entry). A battle draws from any subject pool a question belongs to, so one well-written question serves several categories. Backwards compatible: every question carries a `subjects` array, and the primary `subject` (the first entry) is kept for old data.
 
 ---
 
@@ -96,6 +100,8 @@ The same pattern applies to starting battles, equipping items, gacha pulls, admi
 ### Request safety
 - **Server-side authorization everywhere:** every API route identifies the caller from the signed cookie, not from data sent by the client. Battles, loadouts and profiles are checked for ownership before mutation.
 - **RBAC (role-based access control):** `PLAYER` / `ADMIN` / `SUPER_ADMIN`. Only staff reach admin routes (`requireAdmin`); only super admins change roles, delete accounts, or promote. Client-side tabs are cosmetic — the server is the gate.
+- **Staff moderation of players:** admins and super admins can edit a player's display name and strip an inappropriate profile picture (`PATCH /api/admin/users/:id` with `{ displayName?, avatar? }`). Super admins themselves cannot be moderated or deleted by anyone. Unverified accounts are flagged in the admin table so staff can see them at a glance.
+- **Escalating lockouts:** the account-lock cooldown doubles with every subsequent lockout (15 → 30 → 60 → 120 minutes, capped at 16× = 4 hours). The counter resets on a successful login, so honest users who once mistype a password aren't punished forever — repeated attack *cycles* are what get punished.
 - **Input sanitizing:** every route re-parses and bounds-checks what the client sends (monster stats clamped, images validated as small `data:image/*` URLs, whitelisted modifier IDs, search input escaped before it reaches MongoDB regex).
 - **Least-privilege hints:** the MongoDB connection string should use a database user scoped to the game's database only (no `admin` db), and Atlas should have encryption at rest enabled. OTP codes are crypto-random, expire in 10 minutes, and unverified accounts can't log in or appear on leaderboards.
 
@@ -116,10 +122,24 @@ The same pattern applies to starting battles, equipping items, gacha pulls, admi
 | Category creation/sanitizing | `src/app/api/categories/route.ts`, `src/lib/category-input.ts` |
 | Admin powers | `src/app/api/admin/users/**`, `src/components/quizrpg/admin-view.tsx` |
 | Idle logout | `src/components/quizrpg/idle-logout.tsx` |
+| Unverified-account sweep | `src/app/api/auth/login/route.ts` → `sweepUnverifiedAccounts` |
+| Multi-subject questions | `src/app/api/questions/route.ts` → `validateQuestionInput`, `src/components/quizrpg/question-bank-view.tsx` |
 
 ---
 
-## 6. Deployment checklist
+## 6. The Play modal, step by step
+
+Starting an adventure goes through one modal with three stacked areas:
+
+1. **Category list** (scrollable accordions, filterable Official/Custom, searchable). Selecting a category arms it; expanding it reveals its monster lineup and its subject chips.
+2. **Bottom panel, split by a separator:** left shows the *selected category's* subjects (questions are drawn from those pools); right is the **difficulty carousel** — ◀/▶ arrows and clicking the big label cycle through *all* modes. Locked modes are shown greyed with "Unlocks at Lv N" and the Start button refuses to fire; the server re-checks the level requirement anyway.
+3. **Footer:** *Infinite Mode* launches the endless-wave mode directly; *Start Adventure* launches the chosen mode. Both are blocked while a request is in flight.
+
+The **server** still validates everything: mode unlock levels, category availability (official, or your own), and question-pool existence — the modal is a convenience layer, not a security boundary.
+
+---
+
+## 7. Deployment checklist
 
 1. Set real environment values: `SESSION_SECRET` (long random string), `MONGODB_URI`, SMTP settings.
 2. Serve the app over **HTTPS** so the `Secure` cookie flag takes effect.

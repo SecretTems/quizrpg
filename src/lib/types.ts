@@ -34,6 +34,8 @@ export interface SafeUser {
 export interface QuestionDTO {
   id: string;
   subject: string;
+  /** all subjects this question belongs to (1+) */
+  subjects: string[];
   difficulty: "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER";
   text: string;
   options: string[];

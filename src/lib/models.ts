@@ -138,7 +138,10 @@ const UserSchema = new Schema<IUser>(
 /* ---------- Question ---------- */
 
 export interface IQuestion extends Document {
+  /** primary subject (first of `subjects`, kept for old data/queries) */
   subject: string;
+  /** all subjects this question belongs to (1+); battles matching any of them can draw it */
+  subjects: string[];
   difficulty: "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER";
   text: string;
   options: string[];
@@ -163,6 +166,7 @@ export interface IQuestion extends Document {
 const QuestionSchema = new Schema<IQuestion>(
   {
     subject: { type: String, required: true, maxlength: 40 },
+    subjects: { type: [String], default: [] },
     difficulty: { type: String, enum: ["EASY", "MEDIUM", "HARD", "EXPERT", "MASTER"], required: true },
     text: { type: String, required: true, maxlength: 500 },
     options: { type: [String], required: true },
@@ -178,6 +182,7 @@ const QuestionSchema = new Schema<IQuestion>(
   { timestamps: true },
 );
 QuestionSchema.index({ subject: 1, difficulty: 1 });
+QuestionSchema.index({ subjects: 1 });
 QuestionSchema.index({ ownerId: 1 });
 
 /* ---------- Battle ---------- */
@@ -473,6 +478,8 @@ export interface NormalizedUser {
 export interface NormalizedQuestion {
   id: string;
   subject: string;
+  /** all subjects this question belongs to (1+) */
+  subjects: string[];
   difficulty: "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER";
   text: string;
   options: string[];

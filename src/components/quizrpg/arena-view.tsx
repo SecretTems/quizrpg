@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, Play, Swords, RotateCcw, Trophy, Skull, ArrowUpCircle, Sparkles, Shield, ShoppingBag, Users, Crown, Gift, Search } from "lucide-react";
+import { Loader2, Play, Swords, RotateCcw, Trophy, Skull, ArrowUpCircle, Sparkles, Shield, ShoppingBag, Users, Crown, Gift, Search, Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -387,9 +387,15 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
             <div className="w-full sm:w-64">
               <h4 className="mb-1.5 text-sm font-bold">Difficulty</h4>
               {(() => {
-                const unlocked = BATTLE_MODES.filter((m) => level >= m.unlockLevel);
-                const idx = Math.max(0, unlocked.findIndex((m) => m.id === mode));
-                const current = unlocked[idx] ?? unlocked[0] ?? BATTLE_MODES[0];
+                // browse ALL modes; locked ones show their unlock level and block Start
+                const idx = Math.max(0, BATTLE_MODES.findIndex((m) => m.id === mode));
+                const current = BATTLE_MODES[idx] ?? BATTLE_MODES[0];
+                const locked = level < current.unlockLevel;
+                const total = BATTLE_MODES.length;
+                const cycle = (dir: 1 | -1) => {
+                  const next = BATTLE_MODES[(idx + dir + total) % total];
+                  if (next) setMode(next.id);
+                };
                 return (
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
@@ -397,12 +403,9 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                         size="icon"
                         variant="outline"
                         className="h-11 w-9 shrink-0"
-                        disabled={idx <= 0}
+                        disabled={starting}
                         aria-label="Previous difficulty"
-                        onClick={() => {
-                          const prev = unlocked[idx - 1];
-                          if (prev) setMode(prev.id);
-                        }}
+                        onClick={() => cycle(-1)}
                       >
                         ◀
                       </Button>
@@ -410,30 +413,29 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                         role="button"
                         tabIndex={0}
                         aria-label={`Difficulty ${current.label}, click to cycle`}
-                        onClick={() => {
-                          const next = unlocked[(idx + 1) % unlocked.length];
-                          if (next) setMode(next.id);
-                        }}
+                        onClick={() => cycle(1)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            const next = unlocked[(idx + 1) % unlocked.length];
-                            if (next) setMode(next.id);
-                          }
+                          if (e.key === "Enter" || e.key === " ") cycle(1);
                         }}
-                        className="flex min-h-11 flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-primary bg-primary/10 px-2 text-center font-display text-sm leading-tight"
+                        className={cn(
+                          "flex min-h-11 flex-1 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-2 py-1 text-center font-display leading-tight",
+                          locked ? "border-border bg-muted/40 text-muted-foreground" : "border-primary bg-primary/10",
+                        )}
                       >
-                        {current.label}
+                        <span className="text-sm">{current.label}</span>
+                        {locked && (
+                          <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                            <Lock className="h-3 w-3" /> Unlocks at Lv {current.unlockLevel}
+                          </span>
+                        )}
                       </div>
                       <Button
                         size="icon"
                         variant="outline"
                         className="h-11 w-9 shrink-0"
-                        disabled={idx >= unlocked.length - 1}
+                        disabled={starting}
                         aria-label="Next difficulty"
-                        onClick={() => {
-                          const next = unlocked[idx + 1];
-                          if (next) setMode(next.id);
-                        }}
+                        onClick={() => cycle(1)}
                       >
                         ▶
                       </Button>
@@ -457,7 +459,11 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
               >
                 ♾️ Infinite Mode
               </Button>
-              <Button className="gap-2" disabled={starting} onClick={() => void startBattle(subject, tier, mode, categoryId)}>
+              <Button
+                className="gap-2"
+                disabled={starting || level < (BATTLE_MODES.find((m) => m.id === mode)?.unlockLevel ?? 1)}
+                onClick={() => void startBattle(subject, tier, mode, categoryId)}
+              >
                 {starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />}
                 {starting ? "Entering…" : "Start Adventure"}
               </Button>

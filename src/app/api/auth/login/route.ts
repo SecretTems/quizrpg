@@ -16,15 +16,47 @@ import {
 const PENDING_TTL_MS = 1000 * 60 * 5; // 5 minutes to finish 2FA
 const MAX_PENDING = 500;
 
-// module-level store survives warm serverless/lane invocations; entries expire on read
+/** Unverified accounts are swept away this long after registration. */
+const UNVERIFIED_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
+const SWEEP_INTERVAL_MS = 1000 * 60 * 10; // sweep at most every 10 minutes
+
+// module-level stores survive warm invocations
 const globalForPending = globalThis as unknown as {
   quizrpgPendingLogins?: Map<string, { userId: string; expires: number }>;
+  quizrpgLastSweep?: number;
 };
 const pendingLogins = (globalForPending.quizrpgPendingLogins ??= new Map());
+
+/**
+ * Lazy janitor: deletes unverified accounts older than 24h. Runs at most once
+ * per SWEEP_INTERVAL_MS, piggybacking on login traffic - no cron needed and
+ * nothing is stored. Never blocks the request that triggered it.
+ */
+async function sweepUnverifiedAccounts() {
+  const now = Date.now();
+  if (now - (globalForPending.quizrpgLastSweep ?? 0) < SWEEP_INTERVAL_MS) return;
+  globalForPending.quizrpgLastSweep = now;
+  try {
+    await connectDB();
+
+    const cutoff = now - UNVERIFIED_TTL_MS;
+    const stale = await User.find({ emailVerified: false, createdAt: { $lt: new Date(cutoff) } })
+      .limit(50)
+      .lean();
+    if (stale.length > 0) {
+      const ids = stale.map((u) => u._id);
+      await User.deleteMany({ _id: { $in: ids } });
+      console.log(`[sweep] removed ${stale.length} unverified account(s) older than 24h`);
+    }
+  } catch (err) {
+    console.error("[sweep] failed:", err);
+  }
+}
 
 export async function POST(req: Request) {
   try {
     await connectDB();
+    void sweepUnverifiedAccounts();
     const body = await req.json();
     const username = String(body.username ?? "").trim();
     const password = String(body.password ?? "");
@@ -64,16 +96,13 @@ export async function POST(req: Request) {
       if (user) {
         const failures = (user.loginFailures ?? 0) + 1;
         // escalating cooldown: each lockout lasts longer than the previous one
-        // so repeated attacks are penalized progressively
-        const previous = user.lockoutUntil && user.lockoutUntil > Date.now() ? user.lockoutUntil : null;
-        const priorCount = user.lockoutCount ?? 0;
-        const lockoutCount = priorCount + 1;
-        const multiplier = Math.min(2 ** Math.max(0, lockoutCount - 1), 16); // 1x, 2x, 4x, 8x, then capped at 16x
+        const count = (user.lockoutCount ?? 0) + 1;
+        const multiplier = Math.min(2 ** Math.max(0, count - 1), 16); // 1x, 2x, 4x, 8x... capped at 16x
         const duration = LOCKOUT_MS * multiplier;
         const lockout = failures >= MAX_LOGIN_ATTEMPTS ? Date.now() + duration : null;
         await User.updateOne(
           { _id: user._id },
-          { $set: { loginFailures: failures, lockoutCount, ...(lockout ? { lockoutUntil: lockout } : {}) } },
+          { $set: { loginFailures: failures, lockoutCount: count, ...(lockout ? { lockoutUntil: lockout } : {}) } },
         );
         if (lockout) {
           return NextResponse.json(
@@ -124,7 +153,7 @@ export async function POST(req: Request) {
         const token = crypto.randomBytes(24).toString("hex");
         if (pendingLogins.size > MAX_PENDING) pendingLogins.clear();
         pendingLogins.set(token, { userId: user._id.toString(), expires: Date.now() + PENDING_TTL_MS });
-        return NextResponse.json({ requires2FA: true, pendingToken });
+        return NextResponse.json({ requires2FA: true, pendingToken: token });
       }
     }
 

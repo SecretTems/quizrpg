@@ -380,7 +380,7 @@ export const BATTLE_MODES: BattleMode[] = [
   {
     id: "EASY",
     label: "Easy Grind",
-    description: "5 easy questions. Low stakes, gentle rewards.",
+    description: "Gentle warm-up battles. Low stakes, steady rewards.",
     questionCount: 5,
     rewardXp: 30,
     rewardScore: 60,
@@ -389,7 +389,7 @@ export const BATTLE_MODES: BattleMode[] = [
   {
     id: "MEDIUM",
     label: "Medium Trial",
-    description: "10 medium questions. Fair challenge, decent rewards.",
+    description: "A fair challenge with decent rewards.",
     questionCount: 10,
     rewardXp: 70,
     rewardScore: 160,
@@ -398,7 +398,7 @@ export const BATTLE_MODES: BattleMode[] = [
   {
     id: "HARD",
     label: "Hard Gauntlet",
-    description: "20 hard questions. High risk, high reward.",
+    description: "High risk, high reward.",
     questionCount: 20,
     rewardXp: 140,
     rewardScore: 340,
@@ -407,7 +407,7 @@ export const BATTLE_MODES: BattleMode[] = [
   {
     id: "EXPERT",
     label: "Expert Abyss",
-    description: "30 expert questions. For seasoned veterans only.",
+    description: "For seasoned veterans only.",
     questionCount: 30,
     rewardXp: 240,
     rewardScore: 600,
@@ -416,7 +416,7 @@ export const BATTLE_MODES: BattleMode[] = [
   {
     id: "MASTER",
     label: "Master Trial",
-    description: "50 master questions. The ultimate test of mastery.",
+    description: "The ultimate test of mastery.",
     questionCount: 50,
     rewardXp: 400,
     rewardScore: 1000,

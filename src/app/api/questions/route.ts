@@ -18,7 +18,19 @@ export async function liveOwnerIds(): Promise<string[]> {
 }
 
 export function validateQuestionInput(body: Record<string, unknown>) {
-  const subject = String(body.subject ?? "").trim().slice(0, 40);
+  const rawSubjects = Array.isArray(body.subjects)
+    ? body.subjects
+    : body.subject
+      ? [body.subject]
+      : [];
+  const subjects = [
+    ...new Set(
+      rawSubjects
+        .map((s: unknown) => String(s ?? "").trim().slice(0, 40))
+        .filter(Boolean),
+    ),
+  ].slice(0, 5);
+  const subject = subjects[0] ?? "";
   const difficulty = String(body.difficulty ?? "").toUpperCase();
   const text = String(body.text ?? "").trim().slice(0, 500);
   const optionsRaw = Array.isArray(body.options) ? body.options : [];
@@ -27,7 +39,7 @@ export function validateQuestionInput(body: Record<string, unknown>) {
   const explanation = String(body.explanation ?? "").trim().slice(0, 500);
   const timerSeconds = Math.min(300, Math.max(10, Math.round(Number(body.timerSeconds ?? 30) || 30)));
 
-  if (!subject) return { error: "Subject is required." } as const;
+  if (!subjects.length) return { error: "At least one subject is required." } as const;
   if (!VALID_DIFFICULTIES.includes(difficulty)) return { error: "Invalid difficulty." } as const;
   if (!text) return { error: "Question text is required." } as const;
   if (options.length < 2 || options.length > 10) {
@@ -36,7 +48,7 @@ export function validateQuestionInput(body: Record<string, unknown>) {
   if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex >= options.length) {
     return { error: "Correct answer must be one of the options." } as const;
   }
-  return { subject, difficulty, text, options, correctIndex, explanation, timerSeconds } as const;
+  return { subject, subjects, difficulty, text, options, correctIndex, explanation, timerSeconds } as const;
 }
 
 /**
@@ -71,7 +83,7 @@ export async function GET(req: Request) {
   } else {
     filter.ownerId = user.id;
   }
-  if (subject) filter.subject = subject;
+  if (subject) filter.subjects = subject; // matches docs whose subjects array contains it
   if (difficulty && VALID_DIFFICULTIES.includes(difficulty)) filter.difficulty = difficulty;
   if (search) filter.text = { $regex: escapeRegex(search), $options: "i" };
 

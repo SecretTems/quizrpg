@@ -33,6 +33,7 @@ import { api, useAuth } from "@/lib/store";
 import { DifficultyBadge, StatusBadge, subjectIcon } from "@/components/quizrpg/bits";
 import { CategoryMaker } from "@/components/quizrpg/category-maker";
 import { MonsterMaker } from "@/components/quizrpg/monster-maker";
+import { SubjectPicker } from "@/components/quizrpg/subject-picker";
 import { cn } from "@/lib/utils";
 import type { QuestionDTO } from "@/lib/types";
 import type { NormalizedCategory } from "@/lib/models";
@@ -41,7 +42,7 @@ import type { Difficulty } from "@/lib/game";
 const DIFFICULTIES: Difficulty[] = ["EASY", "MEDIUM", "HARD", "EXPERT", "MASTER"];
 
 interface QuestionForm {
-  subject: string;
+  subjects: string[];
   difficulty: Difficulty;
   text: string;
   options: string[];
@@ -51,7 +52,7 @@ interface QuestionForm {
 }
 
 const EMPTY_FORM: QuestionForm = {
-  subject: "",
+  subjects: [],
   difficulty: "EASY",
   text: "",
   options: ["", "", "", ""],
@@ -144,7 +145,7 @@ export function QuestionBankView() {
   function openEdit(q: QuestionDTO) {
     setEditing(q);
     setForm({
-      subject: q.subject,
+      subjects: q.subjects?.length ? q.subjects : [q.subject],
       difficulty: q.difficulty,
       text: q.text,
       options: [...q.options],
@@ -157,10 +158,10 @@ export function QuestionBankView() {
 
   async function save(submitForReview = false) {
     const filled = form.options.filter((o) => o.trim());
-    if (!form.subject.trim() || !form.text.trim() || filled.length < 2) {
+    if (!form.subjects.length || !form.text.trim() || filled.length < 2) {
       toast({
         title: "Incomplete form",
-        description: "Subject, question text and at least 2 options are required (max 10).",
+        description: "At least one subject, question text and at least 2 options are required (max 10).",
         variant: "destructive",
       });
       return;
@@ -513,36 +514,29 @@ export function QuestionBankView() {
           </DialogHeader>
 
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="q-subject">Subject</Label>
-                <Input
-                  id="q-subject"
-                  list="subject-suggestions"
-                  value={form.subject}
-                  onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                  placeholder="e.g. Mathematics"
-                  maxLength={40}
-                />
-                <datalist id="subject-suggestions">
-                  {allSubjects.map((s) => (
-                    <option key={s} value={s} />
+            <div className="space-y-1.5">
+              <Label>Subjects</Label>
+              <SubjectPicker
+                available={allSubjects}
+                selected={form.subjects}
+                onChange={(subjects) => setForm({ ...form, subjects })}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                A question can belong to several subjects - battles from any of them can draw it.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Difficulty</Label>
+              <Select value={form.difficulty} onValueChange={(v) => setForm({ ...form, difficulty: v as Difficulty })}>
+                <SelectTrigger aria-label="Question difficulty">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DIFFICULTIES.map((d) => (
+                    <SelectItem key={d} value={d}>{d.charAt(0) + d.slice(1).toLowerCase()}</SelectItem>
                   ))}
-                </datalist>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Difficulty</Label>
-                <Select value={form.difficulty} onValueChange={(v) => setForm({ ...form, difficulty: v as Difficulty })}>
-                  <SelectTrigger aria-label="Question difficulty">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DIFFICULTIES.map((d) => (
-                      <SelectItem key={d} value={d}>{d.charAt(0) + d.slice(1).toLowerCase()}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">

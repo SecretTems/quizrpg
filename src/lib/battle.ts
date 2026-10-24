@@ -71,7 +71,7 @@ export async function drawWave(
       : [subject];
 
   let subjectPool =
-    subjectList.length === 0 ? pool : pool.filter((q) => subjectList.includes(q.subject));
+    subjectList.length === 0 ? pool : pool.filter((q) => (q.subjects?.length ? q.subjects : [q.subject]).some((s) => subjectList.includes(s)));
   const wanted = subjectPool.filter((q) => q.difficulty === difficulty).length;
   if (subjectPool.length < wanted) {
     // not enough in this subject - mix in official questions from other subjects
