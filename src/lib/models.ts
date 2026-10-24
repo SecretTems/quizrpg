@@ -46,6 +46,8 @@ export interface IUser extends Document {
   gems: number;
   /** equipped gear; keys are slots, values snapshot the item's stats */
   equipment: { WEAPON: IEquipmentPiece | null; ARMOR: IEquipmentPiece | null; ACCESSORY: IEquipmentPiece | null };
+  /** battle loadout: 3 consumable slots, each holding ONE item (duplicates allowed) */
+  loadout: (string | null)[];
   /** owned items, keyed by item id (each entry stores qty for stackables) */
   backpack: Record<string, { qty: number; piece?: IEquipmentPiece } | undefined>;
   /** true once the onboarding tutorial has been completed */
@@ -66,6 +68,10 @@ export interface IUser extends Document {
   twoFactorEnabled: boolean;
   /** base32 secret for TOTP 2FA */
   twoFactorSecret: string | null;
+  /** failed login attempts since the last successful login */
+  loginFailures: number;
+  /** epoch ms until which the account is locked after too many failures */
+  lockoutUntil: number | null;
   /** epoch ms of the last daily-bonus claim (null = never claimed) */
   lastDailyClaimAt: number | null;
   /** current consecutive daily-claim streak (resets if a day is missed) */
@@ -107,6 +113,8 @@ const UserSchema = new Schema<IUser>(
       default: () => ({ WEAPON: null, ARMOR: null, ACCESSORY: null }),
     },
     backpack: { type: Schema.Types.Mixed, default: {} },
+    /** battle loadout: 3 consumable slots, each holding ONE item id (duplicates allowed) */
+    loadout: { type: [String], default: [null, null, null] },
     tutorialSeen: { type: Boolean, default: false },
     lastAdventureAt: { type: Number, default: null },
     lastAdventureDifficulty: { type: String, default: null },
@@ -116,6 +124,8 @@ const UserSchema = new Schema<IUser>(
     otpExpires: { type: Number, default: null },
     twoFactorEnabled: { type: Boolean, default: false },
     twoFactorSecret: { type: String, default: null },
+    loginFailures: { type: Number, default: 0, min: 0 },
+    lockoutUntil: { type: Number, default: null },
     lastDailyClaimAt: { type: Number, default: null },
     dailyStreak: { type: Number, default: 0, min: 0 },
   },
@@ -442,9 +452,13 @@ export interface NormalizedUser {
   gold: number;
   gems: number;
   equipment: { WEAPON: IEquipmentPiece | null; ARMOR: IEquipmentPiece | null; ACCESSORY: IEquipmentPiece | null };
+  /** battle loadout: 3 consumable slots, each holding ONE item (duplicates allowed) */
+  loadout: (string | null)[];
   backpack: Record<string, { qty: number; piece?: IEquipmentPiece } | undefined>;
   tutorialSeen: boolean;
   twoFactorEnabled: boolean;
+  /** epoch ms until the account is locked from failed logins (0/past = unlocked) */
+  lockoutUntil: number | null;
   /** epoch ms of the last daily-bonus claim (null = never claimed) */
   lastDailyClaimAt: number | null;
   /** current consecutive daily-claim streak */

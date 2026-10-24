@@ -11,13 +11,43 @@ export async function POST(req: Request) {
   const body = await req.json();
   const itemId = String(body.itemId ?? "");
   const slot = body.slot as "WEAPON" | "ARMOR" | "ACCESSORY" | undefined;
-  const action = body.action as "equip" | "unequip" | "discard" | undefined;
+  const action = body.action as "equip" | "unequip" | "discard" | "setLoadout" | undefined;
 
-  if (action !== "equip" && action !== "unequip" && action !== "discard") {
-    return NextResponse.json({ error: "action must be equip, unequip or discard." }, { status: 400 });
+  if (action !== "equip" && action !== "unequip" && action !== "discard" && action !== "setLoadout") {
+    return NextResponse.json({ error: "action must be equip, unequip, discard or setLoadout." }, { status: 400 });
   }
 
   await connectDB();
+
+  if (action === "setLoadout") {
+    // 3 consumable slots; each holds ONE item (duplicates allowed, stack untouched)
+    const requested = Array.isArray(body.loadout) ? body.loadout : [];
+    if (requested.length > 3) {
+      return NextResponse.json({ error: "Loadout can hold at most 3 items." }, { status: 400 });
+    }
+    const normalized: (string | null)[] = [null, null, null];
+    const doc = await User.findById(user.id).lean();
+    const backpack = (doc?.backpack ?? {}) as Record<string, { qty?: number } | undefined>;
+    for (let i = 0; i < requested.length; i++) {
+      const id = String(requested[i] ?? "");
+      if (!id) continue;
+      const def = itemById(id);
+      if (!def || def.slot !== "CONSUMABLE") {
+        return NextResponse.json({ error: `"${def?.name ?? id}" is not a consumable.` }, { status: 400 });
+      }
+      if (!backpack[id]) {
+        return NextResponse.json({ error: `You don't own "${def.name}".` }, { status: 400 });
+      }
+      normalized[i] = id;
+    }
+    const updated = await User.findByIdAndUpdate(
+      user.id,
+      { $set: { loadout: normalized } },
+      { new: true },
+    ).lean();
+    if (!updated) return NextResponse.json({ error: "User not found." }, { status: 404 });
+    return NextResponse.json({ loadout: updated.loadout });
+  }
 
   if (action === "unequip") {
     if (slot !== "WEAPON" && slot !== "ARMOR" && slot !== "ACCESSORY") {

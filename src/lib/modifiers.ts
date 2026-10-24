@@ -4,6 +4,8 @@
  * Pure data + pure helpers; battle logic reads these at runtime.
  */
 
+import { cryptoRandom } from "@/lib/game";
+
 export type EquipmentModifierId =
   | "EXTRA_TIME"
   | "HINT_CHANCE"
@@ -127,5 +129,5 @@ export function defaultEquipmentModifiers(rarity: string): EquipmentModifierId[]
 
 /** Roll whether a chance-percent event happens. */
 export function chanceHit(percent: number): boolean {
-  return Math.random() * 100 < percent;
+  return cryptoRandom() * 100 < percent;
 }

@@ -14,10 +14,11 @@ import {
   type ItemDef,
   type GachaCategory,
 } from "@/lib/adventure-data";
+import { cryptoInt, cryptoRandom } from "@/lib/game";
 
 function rollRarity() {
   const total = GACHA_POOL.reduce((sum, { weight }) => sum + weight, 0);
-  let r = Math.random() * total;
+  let r = cryptoRandom() * total;
   for (const { rarity, weight } of GACHA_POOL) {
     r -= weight;
     if (r <= 0) return rarity;
@@ -37,14 +38,14 @@ function rollItem(rarity: string, focus: GachaCategory | null, owned: Record<str
       const matchWeight = matching.length * GACHA_FOCUS_WEIGHT_BONUS;
       const otherWeight = others.length;
       const total = matchWeight + otherWeight;
-      pool = Math.random() * total < matchWeight || others.length === 0 ? matching : others;
+      pool = cryptoRandom() * total < matchWeight || others.length === 0 ? matching : others;
     }
   }
 
   // filter out items that hit their copy cap already
   const eligible = pool.filter((i) => (owned[i.id]?.qty ?? 0) < (GACHA_MAX_COPIES[i.rarity] ?? 999));
   if (eligible.length === 0) return undefined;
-  return eligible[Math.floor(Math.random() * eligible.length)];
+  return eligible[cryptoInt(eligible.length)];
 }
 
 export async function POST(req: Request) {

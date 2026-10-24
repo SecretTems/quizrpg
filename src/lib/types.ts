@@ -18,8 +18,12 @@ export interface SafeUser {
   bestStreak: number;
   /** true once the onboarding tutorial has been completed */
   tutorialSeen: boolean;
+  /** battle loadout: 3 consumable slots, each holding ONE item (duplicates allowed) */
+  loadout: (string | null)[];
   /** 2FA is enabled for this account (admins/super admins) */
   twoFactorEnabled: boolean;
+  /** epoch ms until the account is locked from failed logins (0/past = unlocked) */
+  lockoutUntil: number | null;
   /** epoch ms of the last daily-bonus claim (null = never claimed) */
   lastDailyClaimAt: number | null;
   /** current consecutive daily-claim streak */

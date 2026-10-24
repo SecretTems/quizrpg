@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Lock, Loader2, Play, Swords, RotateCcw, Trophy, Skull, ArrowUpCircle, Sparkles, Shield, ShoppingBag, Users, Crown, Gift, Search } from "lucide-react";
+import { Loader2, Play, Swords, RotateCcw, Trophy, Skull, ArrowUpCircle, Sparkles, Shield, ShoppingBag, Users, Crown, Gift, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -15,9 +15,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { api, useAuth } from "@/lib/store";
-import { ENEMY_TIERS, BATTLE_MODES, levelProgress, type BattleModeId } from "@/lib/game";
-import { subjectIcon } from "@/components/quizrpg/bits";
+import { BATTLE_MODES, levelProgress, type BattleModeId } from "@/lib/game";
 import { BattleScreen } from "@/components/quizrpg/battle-screen";
 import { EquipmentView } from "@/components/quizrpg/equipment-view";
 import { ShopView } from "@/components/quizrpg/shop-view";
@@ -43,6 +43,10 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   const [categories, setCategories] = useState<NormalizedCategory[]>([]);
   /** search text for the category picker in the Play modal */
   const [categorySearch, setCategorySearch] = useState("");
+  /** Play modal category filter: official vs player-made */
+  const [categoryFilter, setCategoryFilter] = useState<"OFFICIAL" | "CUSTOM">("OFFICIAL");
+  /** search text for the subject grid in the Play modal */
+  const [subjectSearch, setSubjectSearch] = useState("");
   /** selected DB Adventure category opponent - overrides the static tier roster */
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleStateDTO | null>(null);
@@ -61,6 +65,22 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   const [profile, setProfile] = useState<NormalizedUser | null>(null);
 
   const level = user ? levelProgress(user.xp).level : 1;
+
+  /** categories shown in the Play modal after the Official/Custom filter + search */
+  const visibleCategories = categories.filter((c) => {
+    if (categoryFilter === "OFFICIAL" && c.status !== "OFFICIAL") return false;
+    if (categoryFilter === "CUSTOM" && c.status === "OFFICIAL") return false;
+    const q = categorySearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      c.name.toLowerCase().includes(q) ||
+      c.description.toLowerCase().includes(q) ||
+      c.subjects.some((s) => s.toLowerCase().includes(q)) ||
+      (c.monsters ?? []).some((m) => m.name.toLowerCase().includes(q))
+    );
+  });
+  /** first category (or the selected one) starts expanded */
+  const openCategoryKey = categoryId ?? visibleCategories[0]?.id ?? "";
 
   /**
    * Re-fetch the full profile snapshot (gold/gems/backpack/equipment) that the
@@ -162,6 +182,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
     onStatsChanged();
     toast({ title: "You fled the battle", description: "Sometimes living to study another day is the winning move." });
   }
+  void handleFleeEnd;
 
   /* ---------- in-battle ---------- */
   if (battle && user) {
@@ -218,277 +239,217 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
 
       {/* step 1 - subject */}
       <Dialog open={showPlayModal} onOpenChange={setShowPlayModal}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Play className="h-5 w-5" /> Start an Adventure
-            </DialogTitle>
-            <DialogDescription>Choose your subject, difficulty, and opponent - then dive in.</DialogDescription>
+        <DialogContent className="max-h-[90vh] overflow-hidden p-4 sm:max-w-2xl">
+          <DialogHeader className="pb-1">
+            <DialogTitle className="font-display text-xl">Categories</DialogTitle>
           </DialogHeader>
 
-      <Card className="panel-frame">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">1 · Choose your study subject</CardTitle>
-          <CardDescription>Battles draw from the official bank plus your own custom questions.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setSubject("ALL")}
-            aria-pressed={subject === "ALL"}
-            className={cn(
-              "flex min-h-11 items-center gap-2 rounded-lg border-2 px-4 py-2 text-sm font-semibold transition-all",
-              subject === "ALL" ? "border-primary bg-primary/10" : "border-border hover:border-primary/50 hover:bg-accent",
-            )}
-          >
-            <span aria-hidden="true">🎲</span> All Subjects
-          </button>
-          {subjects.map((s) => (
-            <button
-              key={s}
-              onClick={() => setSubject(s)}
-              aria-pressed={subject === s}
-              className={cn(
-                "flex min-h-11 items-center gap-2 rounded-lg border-2 px-4 py-2 text-sm font-semibold transition-all",
-                subject === s ? "border-primary bg-primary/10" : "border-border hover:border-primary/50 hover:bg-accent",
-              )}
-            >
-              <span aria-hidden="true">{subjectIcon(s)}</span> {s}
-            </button>
-          ))}
-          {subjects.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-               No subjects available yet - add questions in the Question Bank, or use All Subjects once the admin seeds the bank.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* step 2 - difficulty / battle mode */}
-      <Card className="panel-frame">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">2 · Choose your difficulty</CardTitle>
-          <CardDescription>
-            Harder modes ask more questions with bigger rewards. New modes unlock as you level up.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {BATTLE_MODES.map((m) => {
-            const locked = level < m.unlockLevel;
-            const active = mode === m.id;
-            return (
-              <button
-                key={m.id}
-                disabled={locked}
-                onClick={() => setMode(m.id)}
-                aria-pressed={active}
-                className={cn(
-                  "relative rounded-xl border-2 p-3 text-left transition-all",
-                  active && !locked
-                    ? "border-primary bg-primary/10 shadow-[0_0_18px_-6px_var(--primary)]"
-                    : "border-border hover:border-primary/50 hover:bg-accent",
-                  locked && "cursor-not-allowed opacity-60",
-                )}
+          {/* top bar: Official / Custom filter + category search */}
+          <div className="flex flex-wrap items-center gap-2">
+            {(
+              [
+                { id: "OFFICIAL", label: "Official" },
+                { id: "CUSTOM", label: "Custom" },
+              ] as const
+            ).map((f) => (
+              <Button
+                key={f.id}
+                size="sm"
+                variant={categoryFilter === f.id ? "secondary" : "outline"}
+                className="h-8 px-3 text-xs"
+                onClick={() => setCategoryFilter(f.id)}
               >
-                {locked && (
-                  <span className="absolute right-2 top-2 flex items-center gap-1 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
-                    <Lock className="h-3 w-3" /> Lv {m.unlockLevel}
-                  </span>
-                )}
-                <span className="block font-display text-xs">{m.label}</span>
-                <span className="mt-2 flex flex-wrap gap-1 text-[10px] font-bold">
-                  <span className="rounded bg-[color-mix(in_oklab,var(--xp)_18%,transparent)] px-1.5 py-0.5 text-[var(--xp)]">+{m.rewardXp} XP</span>
-                </span>
-              </button>
-            );
-          })}
-        </CardContent>
-      </Card>
+                {f.label}
+              </Button>
+            ))}
+            <div className="relative ml-auto min-w-[160px] flex-1 sm:max-w-xs">
+              <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                value={categorySearch}
+                onChange={(e) => setCategorySearch(e.target.value)}
+                placeholder="Search categories..."
+                className="h-8 pl-7 text-xs"
+              />
+            </div>
+          </div>
 
-      {/* step 3 - opponent, grouped by category */}
-      <Card className="panel-frame">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">3 · Choose your opponent</CardTitle>
-          <CardDescription>
-            Opponents are grouped by category - grade level or subject focus. Adventure Categories fight from their own subject pools; new tiers unlock as you level up.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {Array.from(new Set(ENEMY_TIERS.map((t) => t.category))).map((cat) => (
-            <div key={cat}>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">📂 {cat}</p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {ENEMY_TIERS.filter((t) => t.category === cat).map((t) => {
-                  const locked = level < t.unlockLevel;
-                  const active = categoryId === null && tier === t.tier;
+          {/* scrollable category list with expandable monster lineups */}
+          <div className="max-h-[38vh] min-h-[180px] space-y-1 overflow-y-auto rounded-xl border border-border/60 bg-muted/10 p-2">
+            {visibleCategories.length === 0 ? (
+              <p className="px-2 py-6 text-center text-xs text-muted-foreground">
+                No {categoryFilter === "CUSTOM" ? "custom " : ""}categories match "{categorySearch || "your filter"}".
+              </p>
+            ) : (
+              <Accordion type="multiple" defaultValue={[openCategoryKey]} className="space-y-1">
+                {visibleCategories.map((c) => {
+                  const key = c.id;
+                  const active = categoryId === c.id;
+                  const monsters = c.monsters?.length ? c.monsters : null;
+                  const fallbackMonster = { name: c.enemy.name, emoji: c.enemy.emoji, image: undefined, hp: c.enemy.baseHp, atkMin: c.enemy.atkMin, atkMax: c.enemy.atkMax, subjects: c.subjects };
+                  const lineup = monsters ?? [fallbackMonster];
                   return (
-                    <button
-                      key={t.tier}
-                      disabled={locked}
-                      onClick={() => {
-                        setTier(t.tier);
-                        setCategoryId(null);
-                      }}
-                      aria-pressed={active}
-                      className={cn(
-                        "relative rounded-xl border-2 p-4 text-left transition-all",
-                        active && !locked
-                          ? "border-primary bg-primary/10 shadow-[0_0_18px_-6px_var(--primary)]"
-                          : "border-border hover:border-primary/50 hover:bg-accent",
-                        locked && "cursor-not-allowed opacity-60",
-                      )}
-                    >
-                      {locked && (
-                        <span className="absolute right-2 top-2 flex items-center gap-1 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
-                          <Lock className="h-3 w-3" /> Lv {t.unlockLevel}
-                        </span>
-                      )}
-                      <span className={cn("block text-4xl", active && !locked && "animate-floaty")} aria-hidden="true">
-                        {t.sprite}
-                      </span>
-                      <span className="mt-2 block font-display text-xs">{t.name}</span>
-                      <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">{t.blurb}</span>
-                      <span className="mt-2 flex flex-wrap gap-1 text-[10px] font-bold">
-                        <span className="rounded bg-red-600/15 px-1.5 py-0.5 text-red-600 dark:text-red-400">HP {t.maxHp}</span>
-                        <span className="rounded bg-orange-600/15 px-1.5 py-0.5 text-orange-600 dark:text-orange-400">ATK {t.atkMin}-{t.atkMax}</span>
-                      </span>
-                    </button>
+                    <AccordionItem key={key} value={key} className="rounded-lg border-none">
+                      <div
+                        className={cn(
+                          "flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors",
+                          active ? "bg-primary/15 ring-1 ring-primary/40" : "hover:bg-accent/50",
+                        )}
+                      >
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left"
+                          onClick={() => {
+                            setCategoryId(c.id);
+                            setTier(1);
+                          }}
+                          aria-pressed={active}
+                        >
+                          <span className="shrink-0 text-xl" aria-hidden="true">
+                            {c.icon ? <img src={c.icon} alt="" className="h-7 w-7 rounded object-cover" /> : c.monsters?.[0]?.emoji || c.enemy.emoji}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={c.description || c.name}>
+                            [{c.name}] [{c.status === "OFFICIAL" ? "Official" : "Custom"}]
+                            <span className="hidden text-xs font-normal text-muted-foreground sm:inline">
+                              {" "}- {c.description || "no description"}
+                            </span>
+                          </span>
+                        </button>
+                        <AccordionTrigger className="h-8 w-8 shrink-0 justify-center rounded-md p-0 hover:no-underline [&>svg]:h-4 [&>svg]:w-4" />
+                      </div>
+                      <AccordionContent className="px-1 pb-2">
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                          {lineup.map((m, mi) => (
+                            <div
+                              key={mi}
+                              className="flex w-28 shrink-0 flex-col items-center gap-1 rounded-xl border border-border bg-card p-2 text-center"
+                            >
+                              <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-3xl" aria-hidden="true">
+                                {m.image ? <img src={m.image} alt="" className="h-full w-full object-cover" /> : m.emoji}
+                              </span>
+                              <span className="w-full truncate text-[10px] font-bold" title={m.name}>{m.name}</span>
+                              <span className="flex w-full flex-wrap justify-center gap-1 text-[9px] font-bold">
+                                <span className="rounded bg-red-600/15 px-1 py-0.5 text-red-600 dark:text-red-400">HP {m.hp}</span>
+                                <span className="rounded bg-orange-600/15 px-1 py-0.5 text-orange-600 dark:text-orange-400">ATK {m.atkMin}-{m.atkMax}</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
                   );
                 })}
-              </div>
-            </div>
-          ))}
+              </Accordion>
+            )}
+          </div>
 
-          {/* DB categories - monsters defined by admin-approved categories */}
-          {categories.length > 0 && (
+          {/* bottom panel: subjects + difficulty selector */}
+          <div className="grid gap-3 border-t border-border/60 pt-3 sm:grid-cols-2">
             <div>
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">🌍 Categories</p>
-                {/* dropdown jump-to-category */}
-                <select
-                  value={categoryId ?? ""}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setCategoryId(e.target.value);
-                      setTier(1);
-                    } else {
-                      setCategoryId(null);
-                    }
-                  }}
-                  className="h-8 max-w-[220px] rounded-md border bg-background px-2 text-xs"
-                  aria-label="Jump to category"
-                >
-                  <option value="">Classic opponents...</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-                <div className="relative ml-auto min-w-[160px] flex-1 sm:max-w-xs">
-                  <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                <h4 className="text-sm font-bold">Subjects</h4>
+                <div className="relative ml-auto min-w-[140px] flex-1 sm:max-w-[200px]">
+                  <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                   <Input
-                    value={categorySearch}
-                    onChange={(e) => setCategorySearch(e.target.value)}
-                    placeholder="Search categories..."
-                    className="h-8 pl-7 text-xs"
+                    value={subjectSearch}
+                    onChange={(e) => setSubjectSearch(e.target.value)}
+                    placeholder="Search subjects..."
+                    className="h-7 pl-7 text-xs"
                   />
                 </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {categories
-                  .filter((c) => {
-                    const q = categorySearch.trim().toLowerCase();
-                    if (!q) return true;
-                    return (
-                      c.name.toLowerCase().includes(q) ||
-                      c.description.toLowerCase().includes(q) ||
-                      c.subjects.some((s) => s.toLowerCase().includes(q)) ||
-                      (c.monsters ?? []).some((m) => m.name.toLowerCase().includes(q))
-                    );
-                  })
-                  .map((c) => {
-                  const active = categoryId === c.id;
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => setCategoryId(c.id)}
-                      aria-pressed={active}
-                      className={cn(
-                        "relative rounded-xl border-2 p-4 text-left transition-all",
-                        active
-                          ? "border-primary bg-primary/10 shadow-[0_0_18px_-6px_var(--primary)]"
-                          : "border-border hover:border-primary/50 hover:bg-accent",
-                      )}
-                    >
-                      {c.icon ? (
-                        <img src={c.icon} alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
-                      ) : (
-                        <span className={cn("block text-4xl", active && "animate-floaty")} aria-hidden="true">
-                          {c.monsters?.[0]?.emoji || c.enemy.emoji}
-                        </span>
-                      )}
-                      <span className="mt-2 block break-words font-display text-xs">{c.name}</span>
-                      {c.status !== "OFFICIAL" && c.ownerId === user?.id && (
-                        <span className="mt-1 inline-flex w-fit rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                          {c.status === "PENDING"
-                            ? "⏳ Pending approval"
-                            : c.status === "REJECTED"
-                              ? "✖ Rejected"
-                              : "🧩 Private"}
-                        </span>
-                      )}
-                      <span className="mt-1 block break-words text-[11px] leading-snug text-muted-foreground">
-                        {c.description || `Guardian of ${c.name}`}
-                      </span>
-                      <span className="mt-1 block text-[11px] text-muted-foreground">📚 {c.subjects.join(" · ")}</span>
-                      {/* monster lineup - scrollable when the category has many monsters */}
-                      {(c.monsters?.length ?? 0) > 0 && (
-                        <span className="mt-2 block max-h-40 overflow-y-auto rounded-lg border border-border/60 bg-background/40 p-1">
-                          <span className="grid grid-cols-2 gap-1">
-                            {c.monsters!.map((m, mi) => (
-                              <span key={mi} className="flex items-center gap-1.5 rounded-md bg-accent/60 p-1.5 text-left">
-                                {m.image ? (
-                                  <img src={m.image} alt="" className="h-7 w-7 shrink-0 rounded object-cover" aria-hidden="true" />
-                                ) : (
-                                  <span className="shrink-0 text-lg" aria-hidden="true">{m.emoji}</span>
-                                )}
-                                <span className="min-w-0">
-                                  <span className="block truncate text-[10px] font-bold" title={m.name}>{m.name}</span>
-                                  <span className="block text-[9px] text-muted-foreground">HP {m.hp} · ATK {m.atkMin}-{m.atkMax}</span>
-                                </span>
-                              </span>
-                            ))}
-                          </span>
-                        </span>
-                      )}
-                      <span className="mt-2 flex flex-wrap gap-1 text-[10px] font-bold">
-                        {(c.monsters?.length ?? 0) > 0 ? (
-                          <>
-                            <span className="rounded bg-purple-600/15 px-1.5 py-0.5 text-purple-600 dark:text-purple-400">👾 ×{c.monsters!.length}</span>
-                            <span className="rounded bg-red-600/15 px-1.5 py-0.5 text-red-600 dark:text-red-400">HP {c.monsters![0].hp}</span>
-                            <span className="rounded bg-orange-600/15 px-1.5 py-0.5 text-orange-600 dark:text-orange-400">ATK {c.monsters![0].atkMin}-{c.monsters![0].atkMax}</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="rounded bg-red-600/15 px-1.5 py-0.5 text-red-600 dark:text-red-400">HP {c.enemy.baseHp}</span>
-                            <span className="rounded bg-orange-600/15 px-1.5 py-0.5 text-orange-600 dark:text-orange-400">ATK {c.enemy.atkMin}-{c.enemy.atkMax}</span>
-                          </>
-                        )}
-                      </span>
-                    </button>
-                  );
-                })}
+              <div className="flex max-h-28 min-h-[64px] flex-wrap content-start gap-1.5 overflow-y-auto">
+                {(subject === "ALL" ? [{ id: "ALL", label: "All Subjects" }] : []).concat(
+                  subjects.filter((s) => s.toLowerCase().includes(subjectSearch.trim().toLowerCase())).map((s) => ({ id: s, label: s })),
+                ).map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setSubject(s.id)}
+                    aria-pressed={subject === s.id}
+                    className={cn(
+                      "flex min-h-9 items-center rounded-lg border-2 px-3 py-1 text-xs font-semibold transition-all",
+                      subject === s.id ? "border-primary bg-primary/10" : "border-border hover:border-primary/50 hover:bg-accent",
+                    )}
+                  >
+                    {s.label === "All Subjects" ? "🎲 " : ""}{s.label === "All Subjects" ? "All Subjects" : s.label}
+                  </button>
+                ))}
               </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-        <DialogFooter className="gap-2 sm:justify-between">
-          <Button variant="outline" onClick={() => setShowPlayModal(false)}>Cancel</Button>
-          <Button className="gap-2" disabled={starting} onClick={() => void startBattle(subject, tier, mode, categoryId)}>
-            {starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />}
-            {starting ? "Entering…" : "Start Battle"}
-          </Button>
-        </DialogFooter>
+            <div>
+              <h4 className="mb-1.5 text-sm font-bold">Difficulty</h4>
+              {(() => {
+                const unlocked = BATTLE_MODES.filter((m) => level >= m.unlockLevel);
+                const idx = Math.max(0, unlocked.findIndex((m) => m.id === mode));
+                const current = unlocked[idx] ?? unlocked[0] ?? BATTLE_MODES[0];
+                return (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-center gap-2">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-9 w-9 shrink-0"
+                        disabled={idx <= 0}
+                        aria-label="Previous difficulty"
+                        onClick={() => {
+                          const prev = unlocked[idx - 1];
+                          if (prev) setMode(prev.id);
+                        }}
+                      >
+                        ◀
+                      </Button>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Difficulty ${current.label}, click to cycle`}
+                        onClick={() => {
+                          const next = unlocked[(idx + 1) % unlocked.length];
+                          if (next) setMode(next.id);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            const next = unlocked[(idx + 1) % unlocked.length];
+                            if (next) setMode(next.id);
+                          }
+                        }}
+                        className="flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-xl border-2 border-primary bg-primary/10 font-display text-2xl"
+                      >
+                        {current.label}
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-9 w-9 shrink-0"
+                        disabled={idx >= unlocked.length - 1}
+                        aria-label="Next difficulty"
+                        onClick={() => {
+                          const next = unlocked[idx + 1];
+                          if (next) setMode(next.id);
+                        }}
+                      >
+                        ▶
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-1.5 text-[10px] font-bold">
+                      <span className="rounded bg-[color-mix(in_oklab,var(--xp)_18%,transparent)] px-2 py-0.5 text-[var(--xp)]">+{current.rewardXp} XP</span>
+                      <span className="rounded bg-border/60 px-2 py-0.5 text-muted-foreground">{current.questionCount} questions</span>
+                      {current.description && (
+                        <span className="w-full text-center text-[10px] font-normal text-muted-foreground">{current.description}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 border-t border-border/60 pt-3 sm:justify-between">
+            <Button variant="outline" onClick={() => setShowPlayModal(false)}>Cancel</Button>
+            <Button className="gap-2" disabled={starting} onClick={() => void startBattle(subject, tier, mode, categoryId)}>
+              {starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />}
+              {starting ? "Entering…" : "Start Adventure"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

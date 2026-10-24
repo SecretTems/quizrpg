@@ -42,7 +42,15 @@ export async function api<T = unknown>(url: string, options?: RequestInit): Prom
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error || `Request failed (${res.status})`);
+    // attach the response payload to the error so callers can read extra
+    // fields like `requires2FA`, `requiresEmailVerification` or `lockedUntil`
+    const err = new Error(
+      (data as { error?: string }).error || `Request failed (${res.status})`,
+    ) as Error & Record<string, unknown>;
+    for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+      if (key !== "error") err[key] = value;
+    }
+    throw err;
   }
   return data as T;
 }

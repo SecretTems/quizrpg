@@ -19,6 +19,7 @@ import {
 import { StatBar, DifficultyBadge, subjectIcon } from "@/components/quizrpg/bits";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/store";
+import { cryptoShuffle } from "@/lib/game";
 import type { BattleStateDTO, AnswerResultDTO } from "@/lib/types";
 
 interface BattleScreenProps {
@@ -122,6 +123,8 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
   const [revealed, setRevealed] = useState<AnswerResultDTO | null>(null);
   /** ref mirror of the current display order, used by submitAnswer */
   const displayOrderRef = useRef<number[]>([]);
+  /** display position of the correct answer for the currently revealed question */
+  const [correctDisplayIndex, setCorrectDisplayIndex] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
   const [floaties, setFloaties] = useState<Floaty[]>([]);
   const [shake, setShake] = useState<"enemy" | "player" | null>(null);
@@ -152,6 +155,12 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
       pushFloaty("MISS", "player", "miss");
     }
     setRevealed(result);
+    // the server reports the correct answer by its DATABASE index, but the UI
+    // shuffles options — map it to the shuffled display position so the green
+    // highlight lands on the right answer the player actually sees
+    setCorrectDisplayIndex(
+      result.correctIndex >= 0 ? (displayOrderRef.current.indexOf(result.correctIndex)) : -1,
+    );
     if (result.monsterDefeated) {
       pushFloaty("💥 DEFEATED!", "enemy", "crit");
     }
@@ -178,6 +187,7 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
     setTimeout(() => {
       setRevealed(null);
       setSelected(null);
+      setCorrectDisplayIndex(null);
       if (result.status !== "ONGOING") {
         clearDeadlinesFor(battle.id);
         onBattleEnd(result);
@@ -230,12 +240,7 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
   /* shuffle the answer positions per question encounter (stable while this question is up) */
   const displayOrder = useMemo(() => {
     const options = battle.question?.options ?? [];
-    const order = options.map((_, i) => i);
-    for (let i = order.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [order[i], order[j]] = [order[j], order[i]];
-    }
-    return order;
+    return cryptoShuffle(options.map((_, i) => i));
   }, [battle.question?.id, battle.question?.options.length]);
   useEffect(() => {
     displayOrderRef.current = displayOrder;
@@ -382,7 +387,7 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
           <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Answer choices">
             {displayOptions.map((opt, i) => {
               const isSelected = selected === i;
-              const isCorrect = revealed ? displayOrder[revealed.correctIndex] === i : false;
+              const isCorrect = revealed ? correctDisplayIndex === i : false;
               const isWrongPick = revealed ? isSelected && !revealed.correct : false;
               const disabled = phase === "reveal" || pending;
               return (

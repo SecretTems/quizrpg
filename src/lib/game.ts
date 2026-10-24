@@ -3,6 +3,8 @@
  * Shared by API routes (server-authoritative) and UI (display only).
  */
 
+import crypto from "node:crypto";
+
 export type Difficulty = "EASY" | "MEDIUM" | "HARD" | "EXPERT" | "MASTER";
 
 export interface EnemyTier {
@@ -193,7 +195,40 @@ export function goldReward(tier: number, wave = 1): number {
 /** Gem chance & amount - official enemies only, rare drop. */
 export function gemReward(tier: number, wave = 1): number {
   const chance = Math.min(0.1 + tier * 0.02, 0.35) * Math.min(wave, 4);
-  return Math.random() < chance ? 1 + Math.floor(Math.random() * Math.ceil(tier / 3)) : 0;
+  return cryptoRandom() < chance ? 1 + cryptoInt(Math.ceil(tier / 3)) : 0;
+}
+
+/* ---------- crypto-grade randomness ---------- */
+
+/** True uniform random float in [0,1) from the CSPRNG - replaces Math.random everywhere. */
+export function cryptoRandom(): number {
+  return crypto.randomBytes(4).readUInt32BE(0) / 0x1_0000_0000;
+}
+
+/** Uniform random integer in [0, maxExclusive) using rejection sampling (no modulo bias). */
+export function cryptoInt(maxExclusive: number): number {
+  if (maxExclusive <= 0) return 0;
+  const limit = Math.floor(0x1_0000_0000 / maxExclusive) * maxExclusive;
+  let x = 0;
+  do {
+    x = crypto.randomBytes(4).readUInt32BE(0);
+  } while (x >= limit);
+  return x % maxExclusive;
+}
+
+/** Uniform random integer in [min, max] inclusive. */
+export function cryptoIntInclusive(min: number, max: number): number {
+  return min + cryptoInt(max - min + 1);
+}
+
+/** Fisher-Yates shuffle backed by the CSPRNG - used for answer ordering & draws. */
+export function cryptoShuffle<T>(arr: T[]): T[] {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = cryptoInt(i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
 /** STARTER_GEAR ids defined in src/lib/adventure-data.ts */
@@ -240,7 +275,7 @@ export function computeAnswer(
   tier: EnemyTier,
 ): AnswerOutcome {
   if (!wasCorrect) {
-    const damageTaken = tier.atkMin + Math.floor(Math.random() * (tier.atkMax - tier.atkMin + 1));
+    const damageTaken = cryptoIntInclusive(tier.atkMin, tier.atkMax);
     return {
       correct: false,
       damageDealt: 0,
@@ -253,7 +288,7 @@ export function computeAnswer(
   }
   const streak = streakBefore + 1;
   let damage = DIFFICULTY_DAMAGE[difficulty] + streakBonus(streak);
-  const crit = streak >= 3 && Math.random() < 0.25;
+  const crit = streak >= 3 && cryptoRandom() < 0.25;
   if (crit) damage = Math.round(damage * 1.5);
   const xpGained = DIFFICULTY_XP[difficulty] + streakBonus(streak) + (crit ? 5 : 0);
   return {

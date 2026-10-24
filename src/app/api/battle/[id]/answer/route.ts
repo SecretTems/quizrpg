@@ -3,7 +3,7 @@ import { Types } from "mongoose";
 import { connectDB } from "@/lib/db";
 import { Battle, Category, Question, User, normalizeBattle, normalizeQuestion, type BattleMonster } from "@/lib/models";
 import { getSessionUser } from "@/lib/auth";
-import { getTier, computeAnswer, levelProgress, getMode, infiniteWaveBonus } from "@/lib/game";
+import { getTier, computeAnswer, levelProgress, getMode, infiniteWaveBonus, cryptoIntInclusive, cryptoRandom } from "@/lib/game";
 import type { BattleModeId, EnemyTier } from "@/lib/game";
 import { drawWave, newlyUnlockedTier, toBattleQuestion } from "@/lib/battle";
 import { applyBattleWear } from "@/lib/durability";
@@ -129,9 +129,9 @@ export async function POST(req: Request, { params }: Params) {
       if (!isCustom) {
         // Official enemies drop gold; harder enemies drop more and have a higher
         // chance to drop a gem for the gacha.
-        goldDrop = Math.floor(8 + tier.tier * 6 + Math.random() * 10);
+        goldDrop = cryptoIntInclusive(8 + tier.tier * 6, 18 + tier.tier * 6);
         const gemChance = Math.min(0.05 + tier.tier * 0.03, 0.6);
-        if (Math.random() < gemChance) gemDrop = 1;
+        if (cryptoRandom() < gemChance) gemDrop = 1;
         await User.updateOne(
           { _id: user.id },
           {
@@ -177,7 +177,7 @@ export async function POST(req: Request, { params }: Params) {
   const currentMonster = monsters[currentMonsterIndex];
   if (currentMonster?.modifiers?.length) {
     for (const mod of currentMonster.modifiers) {
-      if (Math.random() * 100 >= mod.chance) continue;
+      if (cryptoRandom() * 100 >= mod.chance) continue;
       switch (mod.id) {
         case "RESTING":
           // the monster heals if the player got the question wrong

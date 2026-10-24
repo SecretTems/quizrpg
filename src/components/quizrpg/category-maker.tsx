@@ -305,7 +305,7 @@ export function CategoryMaker({ categories, onReload, onManageMonsters }: Catego
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="cat-name">Name</Label>
               <Input
@@ -325,7 +325,7 @@ export function CategoryMaker({ categories, onReload, onManageMonsters }: Catego
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 placeholder="Short flavor line shown on the category card"
                 rows={2}
-                className="resize-none break-words"
+                className="min-w-0 resize-none break-all"
               />
             </div>
             <div className="space-y-1.5">

@@ -5,6 +5,7 @@ import { Loader2, Swords } from "lucide-react";
 import { useAuth } from "@/lib/store";
 import { AuthScreen } from "@/components/quizrpg/auth-screen";
 import { AppShell } from "@/components/quizrpg/app-shell";
+import { IdleLogout } from "@/components/quizrpg/idle-logout";
 
 export default function Home() {
   const user = useAuth((s) => s.user);
@@ -37,5 +38,12 @@ export default function Home() {
     );
   }
 
-  return user ? <AppShell /> : <AuthScreen />;
+  return user ? (
+    <>
+      <AppShell />
+      <IdleLogout />
+    </>
+  ) : (
+    <AuthScreen />
+  );
 }

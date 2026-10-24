@@ -43,7 +43,6 @@ type Slot = "WEAPON" | "ARMOR" | "ACCESSORY";
 const SLOT_LABEL: Record<Slot, string> = { WEAPON: "Weapon", ARMOR: "Armor", ACCESSORY: "Accessory" };
 const SLOTS: Slot[] = ["WEAPON", "ARMOR", "ACCESSORY"];
 const PER_PAGE = 25; // 5 × 5 storage grid
-const INVENTORY_QUICK_COUNT = 3;
 
 const RING_BY_RARITY: Record<string, string> = {
   LEGENDARY: "border-amber-500/70",
@@ -70,6 +69,8 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [busy, setBusy] = useState(false);
+  /** which loadout slot is being picked for (0-2), or null when not picking */
+  const [pickingSlot, setPickingSlot] = useState<number | null>(null);
 
   /* ---- derived straight from the refreshed user prop (never stale) ---- */
   const backpack = (user?.backpack ?? {}) as Record<string, BackpackEntry>;
@@ -87,26 +88,19 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
   const pages = Math.max(1, Math.ceil(entries.length / PER_PAGE));
   const safePage = Math.min(page, pages - 1);
   const pageEntries = entries.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
-  // quick-access row: consumables only (potions, bombs, etc.) - max 3 different items
-  const allConsumables = entries.filter(([id]) => {
-    const d = itemById(id);
-    return d && d.slot === "CONSUMABLE";
-  });
-  const overflowConsumables = allConsumables.slice(INVENTORY_QUICK_COUNT);
-  const inventoryItems = allConsumables.slice(0, INVENTORY_QUICK_COUNT);
+  /* ---- battle loadout: 3 slots, each holds ONE consumable (duplicates allowed) ---- */
+  const loadout = (user?.loadout ?? [null, null, null]).slice(0, 3) as (string | null)[];
+  const consumableEntries = entries.filter(([id]) => itemById(id)?.slot === "CONSUMABLE");
 
-  async function act(body: Record<string, unknown>, okMsg: string) {
-    setMessage(null);
-    setBusy(true);
-    try {
-      await api("/api/equip", { method: "POST", body: JSON.stringify(body) });
-      onRefresh();
-      setMessage({ kind: "success", text: okMsg });
-    } catch (err) {
-      setMessage({ kind: "error", text: err instanceof Error ? err.message : "Action failed." });
-    } finally {
-      setBusy(false);
-    }
+  function saveLoadout(next: (string | null)[]) {
+    void act({ action: "setLoadout", loadout: next }, "Loadout saved.");
+  }
+
+  function setLoadoutSlot(index: number, itemId: string | null) {
+    const next = [...loadout];
+    next[index] = itemId;
+    setPickingSlot(null);
+    saveLoadout(next);
   }
 
   /** Equip button on an empty slot - uses the Storage selection with a type check. */
@@ -123,6 +117,20 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
       return;
     }
     void act({ action: "equip", itemId: selected, slot }, `Equipped ${selectedDef.name}.`);
+  }
+
+  async function act(body: Record<string, unknown>, okMsg: string) {
+    setMessage(null);
+    setBusy(true);
+    try {
+      await api("/api/equip", { method: "POST", body: JSON.stringify(body) });
+      onRefresh();
+      setMessage({ kind: "success", text: okMsg });
+    } catch (err) {
+      setMessage({ kind: "error", text: err instanceof Error ? err.message : "Action failed." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   function unequip(slot: Slot) {
@@ -201,46 +209,73 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
 
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Inventory (consumables)</h4>
-                <span className="text-[11px] tabular-nums text-muted-foreground">{inventoryItems.length}/3</span>
+                <h4 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Battle loadout</h4>
+                <span className="text-[11px] tabular-nums text-muted-foreground">3 slots · 1 item each</span>
               </div>
-              {overflowConsumables.length > 0 && (
-                <p className="mb-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-600 dark:text-amber-400">
-                  Inventory holds only 3 different consumables - extras ({overflowConsumables.map(([id]) => itemById(id)?.name ?? id).join(", ")}) live in Storage.
-                </p>
-              )}
-              {inventoryItems.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-border/60 p-3 text-xs text-muted-foreground">
-                  No potions or bombs in your backpack - visit the Shop.
-                </p>
-              ) : (
-                <div className="grid grid-cols-3 gap-2">
-                  {inventoryItems.map(([itemId, entry]) => {
-                    const def = itemById(itemId);
-                    if (!def) return null;
-                    return (
-                      <div
-                        key={itemId}
-                        className="flex flex-col items-center gap-1 rounded-lg border border-border/60 p-2"
-                      >
-                        <ItemTile
-                          itemId={itemId}
-                          className={cn("h-14 w-14 border-2", RING_BY_RARITY[def.rarity] ?? "border-border")}
-                        />
-                        <span className="w-full truncate text-center text-[10px] font-semibold">{def.name}</span>
-                        {entry.qty > 1 && <span className="text-[10px] text-muted-foreground">×{entry.qty}</span>}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 w-full text-xs"
-                          disabled={busy}
-                          onClick={() => setMessage({ kind: "error", text: "Use consumables during battle from the battle screen." })}
-                        >
-                          Use in battle
-                        </Button>
-                      </div>
-                    );
-                  })}
+              <p className="mb-2 text-[11px] text-muted-foreground">
+                Pick which consumables you bring into battle. Each slot holds one item - the same item can fill all
+                three slots. The stack stays in storage; using one in battle consumes a single unit.
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {loadout.map((itemId, i) => {
+                  const def = itemId ? itemById(itemId) : undefined;
+                  const qty = itemId ? (backpack[itemId]?.qty ?? 0) : 0;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setPickingSlot(pickingSlot === i ? null : i)}
+                      aria-pressed={pickingSlot === i}
+                      className={cn(
+                        "flex flex-col items-center gap-1 rounded-lg border-2 p-2 transition-all hover:border-primary/50",
+                        pickingSlot === i ? "border-primary ring-2 ring-primary/40" : "border-border/60",
+                      )}
+                    >
+                      {def ? (
+                        <ItemTile itemId={itemId!} className={cn("h-14 w-14 border-2", RING_BY_RARITY[def.rarity] ?? "border-border")} />
+                      ) : (
+                        <span className="flex h-14 w-14 items-center justify-center rounded-lg border-2 border-dashed border-border/70 text-muted-foreground" aria-hidden="true">+</span>
+                      )}
+                      <span className="w-full truncate text-center text-[10px] font-semibold">{def?.name ?? "Empty slot"}</span>
+                      {def && qty > 0 && <span className="text-[10px] text-muted-foreground">×{qty} in storage</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {pickingSlot !== null && (
+                <div className="mt-2 space-y-1 rounded-lg border border-primary/40 bg-primary/5 p-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold">Fill slot {pickingSlot + 1}:</p>
+                    <Button size="sm" variant="ghost" className="h-6 text-[11px]" disabled={busy} onClick={() => setLoadoutSlot(pickingSlot, null)}>
+                      Clear slot
+                    </Button>
+                  </div>
+                  {consumableEntries.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground">No consumables in storage - visit the Shop.</p>
+                  ) : (
+                    <div className="flex max-h-36 flex-wrap gap-1 overflow-y-auto">
+                      {consumableEntries.map(([id, entry]) => {
+                        const d = itemById(id);
+                        if (!d) return null;
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            disabled={busy}
+                            title={`${d.name} ×${entry.qty ?? 1}`}
+                            onClick={() => setLoadoutSlot(pickingSlot, id)}
+                            className="flex items-center gap-1 rounded-md border border-border bg-card px-1.5 py-1 text-[10px] font-semibold hover:border-primary"
+                          >
+                            <ItemTile itemId={id} className="h-6 w-6" />
+                            <span className="max-w-24 truncate">{d.name}</span>
+                            <span className="text-muted-foreground">×{entry.qty ?? 1}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

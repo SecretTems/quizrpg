@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import crypto from "node:crypto";
 import nodemailer from "nodemailer";
 import { cookies } from "next/headers";
 import { Types } from "mongoose";
@@ -9,6 +9,28 @@ const SECRET = process.env.SESSION_SECRET || "quizrpg-dev-secret";
 const COOKIE_NAME = "quizrpg_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14; // 14 days
 const OTP_TTL_MS = 1000 * 60 * 10; // 10 minutes
+
+/* ---------- login rate limiting (account lockout) ---------- */
+
+export const MAX_LOGIN_ATTEMPTS = 5;
+export const LOCKOUT_MS = 1000 * 60 * 15; // 15-minute cooldown after 5 failures
+
+/** Failed login count since last success. */
+export function loginFailures(user: { loginFailures?: number; lastLoginFailureAt?: number | null }): number {
+  return user.loginFailures ?? 0;
+}
+
+/** Epoch ms until which the account is locked, or 0 when not locked. */
+export function lockoutUntil(user: { loginFailures?: number; lockoutUntil?: number | null }): number {
+  const fails = loginFailures(user);
+  const until = user.lockoutUntil ?? 0;
+  // the lockout is only valid while the failing streak is unbroken
+  return fails >= MAX_LOGIN_ATTEMPTS && until > Date.now() ? until : 0;
+}
+
+export function isLockedOut(user: { loginFailures?: number; lockoutUntil?: number | null }): boolean {
+  return lockoutUntil(user) > 0;
+}
 
 /* ---------- password hashing (scrypt) ---------- */
 
@@ -58,6 +80,8 @@ export async function setSessionCookie(userId: string) {
   store.set(COOKIE_NAME, createToken(userId), {
     httpOnly: true,
     sameSite: "lax",
+    // sent only over HTTPS in production; relaxed in dev so plain http://localhost works
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_TTL_MS / 1000,
   });
@@ -65,7 +89,13 @@ export async function setSessionCookie(userId: string) {
 
 export async function clearSessionCookie() {
   const store = await cookies();
-  store.set(COOKIE_NAME, "", { httpOnly: true, path: "/", maxAge: 0 });
+  store.set(COOKIE_NAME, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
 }
 
 /** Returns the authenticated user (sans password) or null. */
@@ -91,7 +121,8 @@ export async function requireAdmin() {
 /* ---------- OTP utilities ---------- */
 
 export function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  // crypto-grade randomness - an OTP is a security token, never use Math.random
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
 }
 
 export function otpExpiresAt(): number {

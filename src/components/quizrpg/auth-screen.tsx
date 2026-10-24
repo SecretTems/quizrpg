@@ -85,6 +85,8 @@ export function AuthScreen() {
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [totpCode, setTotpCode] = useState("");
   const [otpCode, setOtpCode] = useState("");
+  /** single-use token issued after the password step for admins with 2FA */
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
 
   // forgot password flow
   const [showForgot, setShowForgot] = useState(false);
@@ -97,15 +99,23 @@ export function AuthScreen() {
     e.preventDefault();
     setBusy(true);
     try {
-      const data = await api<{ user: SafeUser; requires2FA?: boolean }>("/api/auth/login", {
+      const data = await api<{ user: SafeUser; requires2FA?: boolean; pendingToken?: string }>("/api/auth/login", {
         method: "POST",
         body: JSON.stringify(loginForm),
       });
+      if (data.requires2FA && data.pendingToken) {
+        // step 2 - admins/super admins with 2FA get a code prompt
+        setPendingToken(data.pendingToken);
+        setTotpCode("");
+        toast({ title: "2FA required", description: "Enter the 6-digit code from your authenticator app." });
+        return;
+      }
       setUser(data.user);
       toast({ title: "Welcome back!", description: `Glory awaits, ${data.user.displayName}.` });
     } catch (err: any) {
-      if (err?.requires2FA) {
-        toast({ title: "2FA required", description: "Enter your authenticator code in the 2FA box and click Log in with 2FA.", variant: "destructive" });
+      if (err?.lockedUntil) {
+        const mins = Math.max(1, Math.ceil((err.lockedUntil - Date.now()) / 60000));
+        toast({ title: "Account locked", description: `Too many failed attempts. Try again in about ${mins} minute${mins === 1 ? "" : "s"}.`, variant: "destructive" });
       } else if (err?.requiresEmailVerification) {
         setOtpEmail(loginForm.username);
         setOtpCode("");
@@ -120,21 +130,36 @@ export function AuthScreen() {
   }, [loginForm, setUser, toast]);
 
   const handleTotpLogin = useCallback(async () => {
+    if (!pendingToken) return;
     setBusy(true);
     try {
-      const data = await api<{ user: SafeUser }>("/api/auth/login", {
+      const data = await api<{ user: SafeUser; requires2FA?: boolean; requiresLogin?: boolean }>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ ...loginForm, totpCode }),
+        body: JSON.stringify({ pendingToken, totpCode }),
       });
+      if (data.requiresLogin) {
+        // the pending session expired - fall back to the password step
+        setPendingToken(null);
+        setTotpCode("");
+        toast({ title: "2FA session expired", description: "Please log in again.", variant: "destructive" });
+        return;
+      }
       setUser(data.user);
+      setPendingToken(null);
       setTotpCode("");
       toast({ title: "Welcome back!", description: `Glory awaits, ${data.user.displayName}.` });
     } catch (err: any) {
-      toast({ title: "2FA failed", description: err?.message || "Invalid code.", variant: "destructive" });
+      if (err?.requires2FA) {
+        // wrong code - the token was consumed, so request a fresh pending login
+        setPendingToken(null);
+        toast({ title: "2FA failed", description: "Invalid code - log in again to retry.", variant: "destructive" });
+      } else {
+        toast({ title: "2FA failed", description: err?.message || "Invalid code.", variant: "destructive" });
+      }
     } finally {
       setBusy(false);
     }
-  }, [loginForm, totpCode, setUser, toast]);
+  }, [pendingToken, totpCode, setUser, toast]);
 
   const handleRegister = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -292,6 +317,47 @@ export function AuthScreen() {
 
               {/* LOG IN */}
               <TabsContent value="login" className="mt-4">
+                {pendingToken ? (
+                  /* step 2 - TOTP prompt shown only after a valid password + admin role */
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-2 text-sm">
+                      <KeyRound className="mt-0.5 h-4 w-4 shrink-0" />
+                      <p className="min-w-0 break-words">
+                        Admin account detected. Enter the 6-digit code from your authenticator app to finish signing in.
+                      </p>
+                    </div>
+                    <div className="flex justify-center py-2">
+                      <InputOTP maxLength={6} value={totpCode} onChange={(v) => setTotpCode(v)}>
+                        <InputOTPGroup>
+                          {[0, 1, 2, 3, 4, 5].map((i) => (
+                            <InputOTPSlot key={i} index={i} />
+                          ))}
+                        </InputOTPGroup>
+                      </InputOTP>
+                    </div>
+                    <Button
+                      type="button"
+                      className="w-full"
+                      disabled={busy || totpCode.length !== 6}
+                      onClick={() => void handleTotpLogin()}
+                    >
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                      Verify & sign in
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full text-xs"
+                      disabled={busy}
+                      onClick={() => {
+                        setPendingToken(null);
+                        setTotpCode("");
+                      }}
+                    >
+                      Back to login
+                    </Button>
+                  </div>
+                ) : (
                 <form className="space-y-4" onSubmit={handleLogin}>
                   <div className="space-y-1.5">
                     <Label htmlFor="login-username">Username</Label>
@@ -323,34 +389,7 @@ export function AuthScreen() {
                     Forgot your password?
                   </button>
                 </form>
-
-                {/* 2FA prompt for admins / super admins */}
-                <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
-                  <Label htmlFor="totp-code" className="flex items-center gap-1.5">
-                    <KeyRound className="h-3.5 w-3.5" /> 2FA code (admins)
-                  </Label>
-                  <Input
-                    id="totp-code"
-                    inputMode="numeric"
-                    placeholder="123456"
-                    value={totpCode}
-                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    maxLength={6}
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="w-full"
-                    disabled={busy || totpCode.length !== 6}
-                    onClick={() => void handleTotpLogin()}
-                  >
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                    Log in with 2FA
-                  </Button>
-                  <p className="text-[11px] text-muted-foreground">
-                    Admins and super admins must enter a 6-digit code from their authenticator app after signing in.
-                  </p>
-                </div>
+                )}
               </TabsContent>
 
               {/* SIGN UP */}

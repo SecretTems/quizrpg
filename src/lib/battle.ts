@@ -7,6 +7,8 @@ import {
   getMode,
   pickDifficulty,
   ENEMY_TIERS,
+  cryptoInt,
+  cryptoShuffle,
   type Difficulty,
   type EnemyTier,
 } from "@/lib/game";
@@ -96,7 +98,7 @@ export async function drawWave(
       candidates = subjectPool.filter((q) => q.difficulty === difficulty);
     }
     if (candidates.length === 0) break; // nothing at this difficulty at all
-    const choice = candidates[Math.floor(Math.random() * candidates.length)];
+    const choice = candidates[cryptoInt(candidates.length)];
     used.add(choice.id);
     picked.push(choice);
   }
