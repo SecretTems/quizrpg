@@ -304,9 +304,9 @@ export function computeAnswer(
 
 /* ---------- leveling ---------- */
 
-/** XP required to advance FROM level n to n+1 - steeper curve for a longer grind. */
+/** XP required to advance FROM level n to n+1 - a steep, grindy curve. */
 export function xpToNextLevel(level: number): number {
-  return 200 + (level - 1) * 120;
+  return 200 + (level - 1) * 200;
 }
 
 export function levelFromXp(xp: number): number {
@@ -411,7 +411,7 @@ export const BATTLE_MODES: BattleMode[] = [
     questionCount: 30,
     rewardXp: 240,
     rewardScore: 600,
-    unlockLevel: 6,
+    unlockLevel: 12,
   },
   {
     id: "MASTER",
@@ -420,7 +420,7 @@ export const BATTLE_MODES: BattleMode[] = [
     questionCount: 50,
     rewardXp: 400,
     rewardScore: 1000,
-    unlockLevel: 10,
+    unlockLevel: 20,
   },
   {
     id: "INFINITE",

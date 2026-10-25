@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Swords, LibraryBig, Trophy, UserRound, ShieldCheck, Sun, Moon, ScrollText } from "lucide-react";
+import { Swords, LibraryBig, Trophy, UserRound, ShieldCheck, Sun, Moon, ScrollText, Info } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,16 +12,18 @@ import { QuestionBankView } from "@/components/quizrpg/question-bank-view";
 import { LeaderboardView } from "@/components/quizrpg/leaderboard-view";
 import { ProfileView } from "@/components/quizrpg/profile-view";
 import { AdminView } from "@/components/quizrpg/admin-view";
+import { AboutView } from "@/components/quizrpg/about-view";
 import { HowToPlayDialog } from "@/components/quizrpg/how-to-play";
 import { useToast } from "@/hooks/use-toast";
 
-type Tab = "arena" | "bank" | "leaderboard" | "profile" | "admin";
+type Tab = "arena" | "bank" | "leaderboard" | "profile" | "admin" | "about";
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "arena", label: "Adventure", icon: <Swords className="h-4 w-4" /> },
   { id: "bank", label: "Bank", icon: <LibraryBig className="h-4 w-4" /> },
   { id: "leaderboard", label: "Ranks", icon: <Trophy className="h-4 w-4" /> },
   { id: "profile", label: "Profile", icon: <UserRound className="h-4 w-4" /> },
+  { id: "about", label: "About", icon: <Info className="h-4 w-4" /> },
 ];
 
 export function AppShell() {
@@ -69,7 +71,7 @@ export function AppShell() {
   };
   const tabs =
     user.role === "ADMIN" || user.role === "SUPER_ADMIN"
-      ? [...TABS, { id: "admin" as Tab, label: user.role === "SUPER_ADMIN" ? "Super Admin" : "Admin", icon: <ShieldCheck className="h-4 w-4" /> }]
+      ? [...TABS.filter((t) => t.id !== "about").slice(0, 4), { id: "admin" as Tab, label: user.role === "SUPER_ADMIN" ? "Super Admin" : "Admin", icon: <ShieldCheck className="h-4 w-4" /> }, { id: "about" as Tab, label: "About", icon: <Info className="h-4 w-4" /> }]
       : TABS;
 
   function handleStatsChanged() {
@@ -169,6 +171,7 @@ export function AppShell() {
         {tab === "leaderboard" && <LeaderboardView />}
         {tab === "profile" && <ProfileView onStatsChanged={handleStatsChanged} />}
         {tab === "admin" && (user.role === "ADMIN" || user.role === "SUPER_ADMIN") && <AdminView />}
+        {tab === "about" && <AboutView />}
       </main>
 
       {/* footer sticks to bottom */}

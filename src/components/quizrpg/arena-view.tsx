@@ -387,13 +387,15 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
             <div className="w-full sm:w-64">
               <h4 className="mb-1.5 text-sm font-bold">Difficulty</h4>
               {(() => {
-                // browse ALL modes; locked ones show their unlock level and block Start
-                const idx = Math.max(0, BATTLE_MODES.findIndex((m) => m.id === mode));
-                const current = BATTLE_MODES[idx] ?? BATTLE_MODES[0];
+                // browse all STANDARD difficulties (Infinite Mode lives on the
+                // footer button, not here); locked ones show their unlock level
+                const modes = BATTLE_MODES.filter((m) => !m.infinite);
+                const idx = Math.max(0, modes.findIndex((m) => m.id === mode));
+                const current = modes[idx] ?? modes[0] ?? BATTLE_MODES[0];
                 const locked = level < current.unlockLevel;
-                const total = BATTLE_MODES.length;
+                const total = modes.length;
                 const cycle = (dir: 1 | -1) => {
-                  const next = BATTLE_MODES[(idx + dir + total) % total];
+                  const next = modes[(idx + dir + total) % total];
                   if (next) setMode(next.id);
                 };
                 return (

@@ -89,16 +89,11 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [modsOpen, setModsOpen] = useState(false);
-  const [userSubjects, setUserSubjects] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // subjects available to the player (official + their own), merged with the category's subjects
-  useEffect(() => {
-    api<{ subjects: string[] }>("/api/subjects")
-      .then((d) => setUserSubjects(d.subjects))
-      .catch(() => setUserSubjects([]));
-  }, []);
-  const pickerSubjects = [...new Set([...(cat?.subjects ?? []), ...userSubjects])];
+  // Monsters may only draw from the subjects their category defines — the
+  // category's list is the single source of truth.
+  const pickerSubjects = [...(cat?.subjects ?? [])];
 
   async function persist(next: IMonster[]) {
     if (!cat) return;
@@ -126,6 +121,7 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
   function openEdit(index: number) {
     const m = monsters[index];
     if (!m) return;
+    const allowed = new Set(cat?.subjects ?? []);
     setEditIndex(index);
     setForm({
       name: m.name,
@@ -134,7 +130,8 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
       hp: String(m.hp),
       atkMin: String(m.atkMin),
       atkMax: String(m.atkMax),
-      subjects: [...m.subjects],
+      // drop any subject that is no longer part of the category
+      subjects: m.subjects.filter((s) => allowed.has(s)),
       modifiers: (m.modifiers ?? []).map((mod) => ({ ...mod })),
     });
     setDialogOpen(true);

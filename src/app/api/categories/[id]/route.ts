@@ -54,13 +54,17 @@ export async function PUT(req: Request, { params }: Params) {
 
   if ("monsters" in body) {
     const monsters = sanitizeMonsters(body.monsters);
-    update.monsters = monsters;
-    // keep the category subject list in sync with the lineup when the caller
-    // didn't send an explicit subject list
-    if (!Array.isArray(body.subjects) && monsters.length) {
-      const union = [...new Set(monsters.flatMap((m) => m.subjects))];
-      if (union.length) update.subjects = union;
-    }
+    // The CATEGORY's subject list is authoritative — monster subject picks are
+    // clamped to it, never the other way around (a monster cannot widen the
+    // category, and saving a lineup cannot rewrite the category's subjects).
+    const catSubjects = Array.isArray(update.subjects)
+      ? (update.subjects as string[])
+      : existing.subjects;
+    const allowed = new Set(catSubjects);
+    update.monsters = monsters.map((m) => ({
+      ...m,
+      subjects: m.subjects.filter((s) => allowed.has(s)),
+    }));
   }
 
   if (body.enemy && typeof body.enemy === "object") {
