@@ -52,6 +52,7 @@ export async function POST(req: Request, { params }: Params) {
   const currentMonsterIndex = battleDoc.monsterIndex ?? 0;
   let nextMonsterIndex: number | null = null;
   const wasCorrect = choiceIndex === question.correctIndex;
+  /** answered-so-far accuracy (right + this answer / total + 1) reported with battle results */
 
   // user-made (custom/pending) questions are practice-only in classic battles —
   // BUT in a player-created category fight, the category owner's own custom
@@ -94,6 +95,21 @@ export async function POST(req: Request, { params }: Params) {
     if (streak > user.bestStreak) {
       await User.updateOne({ _id: user.id }, { $set: { bestStreak: streak } });
     }
+  }
+
+  // --- accuracy ledger: overall, per-subject and per-category tallies ---
+  {
+    const inc: Record<string, number> = {
+      [wasCorrect ? "questionsRight" : "questionsWrong"]: 1,
+    };
+    const subjects = qDoc.subjects?.length ? qDoc.subjects : [question.subject];
+    for (const s of subjects) {
+      inc[`subjectStats.${s}.${wasCorrect ? "right" : "wrong"}`] = 1;
+    }
+    if (battleDoc.categoryId) {
+      inc[`categoryStats.${battleDoc.categoryId}.${wasCorrect ? "right" : "wrong"}`] = 1;
+    }
+    await User.updateOne({ _id: user.id }, { $inc: inc });
   }
 
   let status: "ONGOING" | "WON" | "LOST" = "ONGOING";
@@ -267,6 +283,8 @@ export async function POST(req: Request, { params }: Params) {
     cursor,
     status,
     questions: allIds,
+    questionsRight: battleDoc.questionsRight + (wasCorrect ? 1 : 0),
+    questionsWrong: battleDoc.questionsWrong + (wasCorrect ? 0 : 1),
     questionDeadlineAt: Date.now() + (nextQuestion?.timerSeconds ?? 30) * 1000,
   });
   await battleDoc.save();
@@ -313,6 +331,9 @@ export async function POST(req: Request, { params }: Params) {
     victoryBonus,
     waveCleared,
     waveNumber: updatedBattle.wave,
+    accuracy: updatedBattle.questionsRight + updatedBattle.questionsWrong > 0
+      ? Math.round((updatedBattle.questionsRight / (updatedBattle.questionsRight + updatedBattle.questionsWrong)) * 100)
+      : null,
     goldDrop,
     gemDrop,
     monsterDefeated: nextMonster !== null,

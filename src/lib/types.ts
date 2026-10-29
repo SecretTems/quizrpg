@@ -16,6 +16,12 @@ export interface SafeUser {
   battlesLost: number;
   bestScore: number;
   bestStreak: number;
+  /** lifetime correct answers */
+  questionsRight: number;
+  /** lifetime wrong answers / timeouts */
+  questionsWrong: number;
+  /** per-subject accuracy ledger, keyed by subject name */
+  subjectStats: Record<string, { right: number; wrong: number } | undefined>;
   /** true once the onboarding tutorial has been completed */
   tutorialSeen: boolean;
   /** battle loadout: 3 consumable slots, each holding ONE item (duplicates allowed) */
@@ -121,6 +127,8 @@ export interface AnswerResultDTO {
   goldDrop: number;
   /** gems earned from the victory loot drop (0 otherwise) */
   gemDrop: number;
+  /** accuracy rating % for this adventure (right / answered so far); null = no answers yet */
+  accuracy: number | null;
   /** true when a category monster fell and the next one in the lineup stepped in */
   monsterDefeated: boolean;
   /** updated enemy info - present when the lineup advanced mid-battle */
@@ -146,4 +154,6 @@ export interface LeaderboardEntry {
   bestScore: number;
   battlesWon: number;
   bestStreak: number;
+  /** accuracy % across answered questions (null = nothing answered) */
+  accuracy: number | null;
 }

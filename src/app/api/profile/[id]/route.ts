@@ -21,6 +21,18 @@ export async function GET(_req: Request, { params }: Params) {
 
   const u = normalizeUser(doc);
   const lp = levelProgress(u.xp);
+  const totalAnswered = (u.questionsRight ?? 0) + (u.questionsWrong ?? 0);
+  const accuracy = totalAnswered > 0 ? Math.round(((u.questionsRight ?? 0) / totalAnswered) * 100) : null;
+  const subjectStats = u.subjectStats ?? {};
+  const subjectRows = Object.entries(subjectStats)
+    .filter(([, s]) => s && s.right + s.wrong > 0)
+    .map(([name, s]) => ({
+      name,
+      right: s!.right,
+      wrong: s!.wrong,
+      accuracy: Math.round((s!.right / (s!.right + s!.wrong)) * 100),
+    }))
+    .sort((a, b) => b.accuracy - a.accuracy);
   return NextResponse.json({
     profile: {
       id: u.id,
@@ -34,6 +46,10 @@ export async function GET(_req: Request, { params }: Params) {
       battlesLost: u.battlesLost,
       bestScore: u.bestScore,
       bestStreak: u.bestStreak,
+      questionsRight: u.questionsRight ?? 0,
+      questionsWrong: u.questionsWrong ?? 0,
+      accuracy,
+      subjectStats: subjectRows,
       createdAt: u.createdAt,
     },
   });

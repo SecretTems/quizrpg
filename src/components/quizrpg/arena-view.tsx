@@ -191,6 +191,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
       <BattleScreen
         battle={battle}
         playerName={user.displayName}
+        playerAvatar={user.avatar}
         onBattleEnd={handleBattleEnd}
       />
     );
@@ -631,6 +632,17 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                 <div className="rounded-lg border border-border bg-muted/40 p-3">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Remaining HP</p>
                   <p className="text-lg font-bold tabular-nums">{result.status === "WON" ? "Enemy: 0" : `You: ${result.playerHp}`}</p>
+                </div>
+                <div className="col-span-2 rounded-lg border border-border bg-muted/40 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Accuracy rating</p>
+                    <p className="text-lg font-bold tabular-nums">
+                      {result.accuracy != null ? `${result.accuracy}%` : "—"}
+                    </p>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Correct answers ÷ every question answered this adventure
+                  </p>
                 </div>
               </div>
 

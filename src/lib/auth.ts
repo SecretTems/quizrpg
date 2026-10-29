@@ -54,30 +54,43 @@ function sign(payload: string): string {
   return crypto.createHmac("sha256", SECRET).update(payload).digest("hex");
 }
 
-function createToken(userId: string): string {
+/**
+ * A session id is minted per login. It is embedded in the token AND stored on
+ * the user doc - only the MOST RECENT login for an account stays valid, so two
+ * people (or two tabs/devices) can never use the same account at once.
+ */
+function createSessionId(): string {
+  return crypto.randomBytes(24).toString("hex");
+}
+
+function createToken(userId: string, sessionId: string): string {
   const expires = Date.now() + SESSION_TTL_MS;
-  const payload = `${userId}.${expires}`;
+  const payload = `${userId}.${sessionId}.${expires}`;
   return `${payload}.${sign(payload)}`;
 }
 
-function parseToken(token: string): string | null {
+function parseToken(token: string): { userId: string; sessionId: string } | null {
   const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const [userId, expires, signature] = parts;
-  const payload = `${userId}.${expires}`;
+  if (parts.length !== 4) return null;
+  const [userId, sessionId, expires, signature] = parts;
+  const payload = `${userId}.${sessionId}.${expires}`;
   const expected = sign(payload);
   const sigBuf = Buffer.from(signature);
   const expBuf = Buffer.from(expected);
   if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return null;
   if (Number(expires) < Date.now()) return null;
-  return userId;
+  return { userId, sessionId };
 }
 
 /* ---------- cookie helpers (for route handlers) ---------- */
 
 export async function setSessionCookie(userId: string) {
   const store = await cookies();
-  store.set(COOKIE_NAME, createToken(userId), {
+  // each login invalidates every previous session for this account
+  const sessionId = createSessionId();
+  await connectDB();
+  await User.updateOne({ _id: userId }, { $set: { sessionId } });
+  store.set(COOKIE_NAME, createToken(userId, sessionId), {
     httpOnly: true,
     sameSite: "lax",
     // sent only over HTTPS in production; relaxed in dev so plain http://localhost works
@@ -103,11 +116,13 @@ export async function getSessionUser(): Promise<NormalizedUser | null> {
   const store = await cookies();
   const token = store.get(COOKIE_NAME)?.value;
   if (!token) return null;
-  const userId = parseToken(token);
-  if (!userId || !Types.ObjectId.isValid(userId)) return null;
+  const parsed = parseToken(token);
+  if (!parsed || !Types.ObjectId.isValid(parsed.userId)) return null;
   await connectDB();
-  const user = await User.findById(userId).lean();
+  const user = await User.findById(parsed.userId).lean();
   if (!user) return null;
+  // single-active-session enforcement: a token from an earlier login is rejected
+  if ((user.sessionId ?? null) !== parsed.sessionId) return null;
   return normalizeUser(user);
 }
 

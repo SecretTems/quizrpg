@@ -66,7 +66,7 @@ export function AboutView() {
       <div>
         <h2 className="font-display text-lg">📜 About QUIZRPG</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          QUIZRPG — An Interactive Gaming Quiz System for Enhancing Student Learning and Engagement.
+          QUIZRPG - An Interactive Gaming Quiz System for Enhancing Student Learning and Engagement.
           It turns your study reviewers into turn-based RPG battles: every correct answer is an
           attack, every miss is a counterattack, and leveling up is literally the same thing as
           learning the material.

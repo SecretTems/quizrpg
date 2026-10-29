@@ -343,7 +343,7 @@ export function AuthScreen() {
                         <InputOTPGroup>
                           {[0, 1, 2, 3, 4, 5].map((i) => (
                             <InputOTPSlot key={i} index={i} />
-                          ))}
+                          ))} 
                         </InputOTPGroup>
                       </InputOTP>
                     </div>

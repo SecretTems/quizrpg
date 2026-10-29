@@ -160,6 +160,17 @@ export function ProfileView({ onStatsChanged }: { onStatsChanged: () => void }) 
   const winRate = user.battlesWon + user.battlesLost > 0
     ? Math.round((user.battlesWon / (user.battlesWon + user.battlesLost)) * 100)
     : null;
+  const answered = (user.questionsRight ?? 0) + (user.questionsWrong ?? 0);
+  const accuracy = answered > 0 ? Math.round(((user.questionsRight ?? 0) / answered) * 100) : null;
+  const subjectRows = Object.entries(user.subjectStats ?? {})
+    .filter(([, s]) => s && s.right + s.wrong > 0)
+    .map(([name, s]) => ({
+      name,
+      accuracy: Math.round((s!.right / (s!.right + s!.wrong)) * 100),
+      right: s!.right,
+      total: s!.right + s!.wrong,
+    }))
+    .sort((a, b) => b.accuracy - a.accuracy);
 
   async function saveName() {
     if (!name.trim()) return;
@@ -337,6 +348,38 @@ export function ProfileView({ onStatsChanged }: { onStatsChanged: () => void }) 
                 <span className="font-bold tabular-nums">{winRate}%</span>
               </div>
               <Progress value={winRate} className="h-2" aria-label={`Win rate ${winRate}%`} />
+            </div>
+          )}
+
+          {accuracy !== null && (
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <div className="rounded-lg border border-border bg-muted/40 p-3 text-center">
+                <p className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{user.questionsRight}</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Correct</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/40 p-3 text-center">
+                <p className="text-lg font-bold tabular-nums text-destructive">{user.questionsWrong}</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Wrong</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/40 p-3 text-center">
+                <p className="text-lg font-bold tabular-nums">🎯 {accuracy}%</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Accuracy</p>
+              </div>
+            </div>
+          )}
+
+          {subjectRows.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Accuracy by subject</p>
+              {subjectRows.map((s) => (
+                <div key={s.name} className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="font-semibold">{s.name}</span>
+                    <span className="tabular-nums text-muted-foreground">{s.accuracy}% · {s.right}/{s.total}</span>
+                  </div>
+                  <Progress value={s.accuracy} className="h-1.5" aria-label={`${s.name} accuracy ${s.accuracy}%`} />
+                </div>
+              ))}
             </div>
           )}
         </CardContent>

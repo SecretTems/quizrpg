@@ -25,6 +25,8 @@ import type { BattleStateDTO, AnswerResultDTO } from "@/lib/types";
 interface BattleScreenProps {
   battle: BattleStateDTO;
   playerName: string;
+  /** the player's custom profile picture (data URL); empty falls back to 🧙 */
+  playerAvatar?: string;
   onBattleEnd: (result: AnswerResultDTO | null) => void;
 }
 
@@ -117,7 +119,7 @@ function QuestionTimer({
   );
 }
 
-export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }: BattleScreenProps) {
+export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, onBattleEnd }: BattleScreenProps) {
   const [battle, setBattle] = useState<BattleStateDTO>(initialBattle);
   const [selected, setSelected] = useState<number | null>(null);
   const [revealed, setRevealed] = useState<AnswerResultDTO | null>(null);
@@ -451,8 +453,8 @@ export function BattleScreen({ battle: initialBattle, playerName, onBattleEnd }:
       <motion.div animate={shake === "player" ? { x: [0, -8, 7, -4, 2, 0] } : { x: 0 }} transition={{ duration: 0.45 }}>
         <Card className="panel-frame">
           <CardContent className="flex items-center gap-4 p-4 sm:p-5">
-            <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/50 text-4xl" aria-hidden="true">
-              🧙
+            <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/50 text-4xl" aria-hidden="true">
+              {playerAvatar ? <img src={playerAvatar} alt="" className="h-full w-full object-cover" /> : "🧙"}
               <AnimatePresence>
                 {floaties.filter((f) => f.side === "player").map((f) => (
                   <motion.span

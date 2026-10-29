@@ -78,6 +78,16 @@ export interface IUser extends Document {
   lastDailyClaimAt: number | null;
   /** current consecutive daily-claim streak (resets if a day is missed) */
   dailyStreak: number;
+  /** lifetime correct answers across all battles */
+  questionsRight: number;
+  /** lifetime wrong answers (and timeouts) across all battles */
+  questionsWrong: number;
+  /** per-subject accuracy ledger, keyed by subject name */
+  subjectStats: Record<string, { right: number; wrong: number } | undefined>;
+  /** per-adventure-category accuracy ledger, keyed by category id */
+  categoryStats: Record<string, { right: number; wrong: number } | undefined>;
+  /** id of the currently valid session - logging in elsewhere invalidates older sessions */
+  sessionId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -131,6 +141,11 @@ const UserSchema = new Schema<IUser>(
     lockoutCount: { type: Number, default: 0, min: 0 },
     lastDailyClaimAt: { type: Number, default: null },
     dailyStreak: { type: Number, default: 0, min: 0 },
+    questionsRight: { type: Number, default: 0, min: 0 },
+    questionsWrong: { type: Number, default: 0, min: 0 },
+    subjectStats: { type: Schema.Types.Mixed, default: {} },
+    categoryStats: { type: Schema.Types.Mixed, default: {} },
+    sessionId: { type: String, default: null },
   },
   { timestamps: true },
 );
@@ -231,6 +246,10 @@ export interface IBattle extends Document {
   bestStreak: number;
   score: number;
   xpEarned: number;
+  /** correct answers given in this battle (for the end-of-adventure accuracy) */
+  questionsRight: number;
+  /** wrong answers / timeouts in this battle */
+  questionsWrong: number;
     /** question ids for this battle, in order; cursor points at the active one */
     questions: string[];
     cursor: number;
@@ -286,6 +305,8 @@ const BattleSchema = new Schema<IBattle>(
     bestStreak: { type: Number, default: 0 },
     score: { type: Number, default: 0 },
     xpEarned: { type: Number, default: 0 },
+    questionsRight: { type: Number, default: 0, min: 0 },
+    questionsWrong: { type: Number, default: 0, min: 0 },
     questions: { type: [String], default: [] },
     cursor: { type: Number, default: 0 },
     status: { type: String, enum: ["ONGOING", "WON", "LOST", "FLED"], default: "ONGOING" },
@@ -464,6 +485,10 @@ export interface NormalizedUser {
   loadout: (string | null)[];
   backpack: Record<string, { qty: number; piece?: IEquipmentPiece } | undefined>;
   tutorialSeen: boolean;
+  questionsRight: number;
+  questionsWrong: number;
+  subjectStats: Record<string, { right: number; wrong: number } | undefined>;
+  categoryStats: Record<string, { right: number; wrong: number } | undefined>;
   twoFactorEnabled: boolean;
   /** epoch ms until the account is locked from failed logins (0/past = unlocked) */
   lockoutUntil: number | null;
@@ -523,6 +548,8 @@ export interface NormalizedBattle {
   bestStreak: number;
   score: number;
   xpEarned: number;
+  questionsRight: number;
+  questionsWrong: number;
   questions: string[];
   cursor: number;
   status: "ONGOING" | "WON" | "LOST" | "FLED";
@@ -568,11 +595,16 @@ function toId(id: Types.ObjectId | string): string {
   return typeof id === "string" ? id : id.toString();
 }
 
-/** User lean doc → API-safe object (passwordHash stripped, id as string). */
+/** User lean doc → API-safe object (passwordHash & session id stripped, id as string). */
 export function normalizeUser(doc: UserLean): NormalizedUser {
-  const { _id, __v, passwordHash, ...rest } = doc as UserLean & { __v?: number; passwordHash?: string };
+  const { _id, __v, passwordHash, sessionId, ...rest } = doc as UserLean & {
+    __v?: number;
+    passwordHash?: string;
+    sessionId?: string;
+  };
   void __v;
   void passwordHash;
+  void sessionId;
   return { id: toId(_id), ...(rest as Omit<NormalizedUser, "id">) };
 }
 
