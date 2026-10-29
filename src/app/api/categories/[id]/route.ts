@@ -122,8 +122,11 @@ export async function PUT(req: Request, { params }: Params) {
   ).lean();
   if (!updated) return NextResponse.json({ error: "Category not found." }, { status: 404 });
 
+  // "CUSTOM" is included so an admin can approve a category the creator never
+  // explicitly submitted (this is what made the old Approve button do nothing:
+  // votes were recorded, but only a PENDING category could ever be promoted).
   if (
-    updated.status === "PENDING" &&
+    (updated.status === "PENDING" || updated.status === "CUSTOM") &&
     updated.approvalVotes.length >= APPROVAL_VOTES_REQUIRED
   ) {
     updated = await Category.findByIdAndUpdate(

@@ -81,6 +81,8 @@ export function QuestionBankView() {
   const [maker, setMaker] = useState<Maker>("questions");
   const [categories, setCategories] = useState<NormalizedCategory[]>([]);
   const [filterCategoryId, setFilterCategoryId] = useState("ALL");
+  /** category the question dialog targets - its subject list drives the subject picker */
+  const [formCategoryId, setFormCategoryId] = useState("ALL");
   const [monsterMakerCatId, setMonsterMakerCatId] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -139,6 +141,14 @@ export function QuestionBankView() {
   function openCreate() {
     setEditing(null);
     setForm(EMPTY_FORM);
+    // seed the form's subjects from the category currently being browsed
+    const seedCat = categories.find((c) => c.id === filterCategoryId);
+    setFormCategoryId(filterCategoryId);
+    if (seedCat?.subjects.length) {
+      setForm({ ...EMPTY_FORM, subjects: [...seedCat.subjects] });
+    } else {
+      setForm(EMPTY_FORM);
+    }
     setDialogOpen(true);
   }
 
@@ -153,6 +163,8 @@ export function QuestionBankView() {
       explanation: q.explanation,
       timerSeconds: q.timerSeconds ?? 30,
     });
+    // editing keeps every subject reachable - don't clamp to one category
+    setFormCategoryId("ALL");
     setDialogOpen(true);
   }
 
@@ -515,14 +527,38 @@ export function QuestionBankView() {
 
           <div className="space-y-3">
             <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Select
+                value={formCategoryId}
+                onValueChange={(v) => {
+                  setFormCategoryId(v);
+                  // switching category snaps the subject picks to its list,
+                  // the same way the Monster Maker works
+                  const cat = categories.find((c) => c.id === v);
+                  if (cat?.subjects.length) setForm((f) => ({ ...f, subjects: [...cat.subjects] }));
+                }}
+              >
+                <SelectTrigger aria-label="Question category">
+                  <SelectValue placeholder="Choose a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">No category (any subject)</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <Label>Subjects</Label>
               <SubjectPicker
-                available={allSubjects}
+                available={formCategoryId === "ALL" ? allSubjects : categories.find((c) => c.id === formCategoryId)?.subjects ?? []}
                 selected={form.subjects}
                 onChange={(subjects) => setForm({ ...form, subjects })}
               />
               <p className="text-[11px] text-muted-foreground">
                 A question can belong to several subjects - battles from any of them can draw it.
+                {formCategoryId !== "ALL" && " Picking a category limits the subjects to that category's list."}
               </p>
             </div>
             <div className="space-y-1.5">

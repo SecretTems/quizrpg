@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Crown, Loader2, Star, Target, Trophy } from "lucide-react";
+import { Crown, Loader2, Search, Star, Target, Trophy } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { api, useAuth } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { ProfileDialog } from "@/components/quizrpg/profile-dialog";
@@ -12,25 +12,33 @@ import type { LeaderboardEntry } from "@/lib/types";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
-interface SubjectBoard {
-  name: string;
-  entries: LeaderboardEntry[];
-}
+type Metric = "score" | "xp" | "accuracy";
 
-interface CategoryBoard {
-  id: string;
-  name: string;
-  entries: LeaderboardEntry[];
-}
-
-interface LeaderboardData {
+/** Every scope (overall / category / subject) carries the same three boards. */
+interface ScopeBoards {
   byScore: LeaderboardEntry[];
   byXp: LeaderboardEntry[];
   byAccuracy: LeaderboardEntry[];
-  subjects: SubjectBoard[];
+}
+
+interface CategoryBoard extends ScopeBoards {
+  id: string;
+  name: string;
+}
+
+interface SubjectBoard extends ScopeBoards {
+  name: string;
+}
+
+interface LeaderboardData {
+  overall: ScopeBoards;
   categories: CategoryBoard[];
+  subjects: SubjectBoard[];
   totalPlayers: number;
 }
+
+/** Which level of the ladder is being viewed, plus the chosen category/subject. */
+type Level = "overall" | "category" | "subject";
 
 function AccuracyBadge({ accuracy }: { accuracy?: number | null }) {
   if (accuracy == null) return null;
@@ -48,7 +56,17 @@ function AccuracyBadge({ accuracy }: { accuracy?: number | null }) {
   );
 }
 
-function EntryRow({ entry, me, metric, onView }: { entry: LeaderboardEntry; me: string; metric: "score" | "xp" | "accuracy"; onView: (userId: string) => void }) {
+function EntryRow({
+  entry,
+  me,
+  metric,
+  onView,
+}: {
+  entry: LeaderboardEntry;
+  me: string;
+  metric: Metric;
+  onView: (userId: string) => void;
+}) {
   const isMe = entry.userId === me;
   return (
     <motion.button
@@ -84,7 +102,11 @@ function EntryRow({ entry, me, metric, onView }: { entry: LeaderboardEntry; me: 
         {metric === "accuracy" ? (
           <>
             <p className="text-sm font-bold tabular-nums">{entry.accuracy}%</p>
-            <AccuracyBadge accuracy={entry.accuracy} />
+            <p className="text-[10px] tabular-nums text-muted-foreground">
+              <span className="text-emerald-600 dark:text-emerald-400">{entry.questionsRight}✓</span>
+              {" / "}
+              <span className="text-destructive">{entry.questionsWrong}✗</span>
+            </p>
           </>
         ) : (
           <>
@@ -101,14 +123,40 @@ function EntryRow({ entry, me, metric, onView }: { entry: LeaderboardEntry; me: 
   );
 }
 
-function BoardList({ entries, me, metric, onView, empty }: { entries: LeaderboardEntry[]; me: string; metric: "score" | "xp" | "accuracy"; onView: (id: string) => void; empty: string }) {
+function BoardList({
+  entries,
+  me,
+  metric,
+  onView,
+  empty,
+}: {
+  entries: LeaderboardEntry[];
+  me: string;
+  metric: Metric;
+  onView: (id: string) => void;
+  empty: string;
+}) {
   if (entries.length === 0) return <p className="py-6 text-center text-sm text-muted-foreground">{empty}</p>;
   return (
     <>
-      {entries.map((e) => <EntryRow key={e.userId} entry={e} me={me} metric={metric} onView={onView} />)}
+      {entries.map((e) => (
+        <EntryRow key={e.userId} entry={e} me={me} metric={metric} onView={onView} />
+      ))}
     </>
   );
 }
+
+const METRICS: { id: Metric; label: string; icon: React.ReactNode }[] = [
+  { id: "score", label: "Scores", icon: <Trophy className="h-3.5 w-3.5" /> },
+  { id: "xp", label: "XP", icon: <Star className="h-3.5 w-3.5" /> },
+  { id: "accuracy", label: "Accuracy", icon: <Target className="h-3.5 w-3.5" /> },
+];
+
+const LEVELS: { id: Level; label: string }[] = [
+  { id: "overall", label: "Overall" },
+  { id: "category", label: "Category" },
+  { id: "subject", label: "Subject" },
+];
 
 export function LeaderboardView() {
   const user = useAuth((s) => s.user);
@@ -117,12 +165,21 @@ export function LeaderboardView() {
   const [error, setError] = useState("");
   const [viewingId, setViewingId] = useState<string | null>(null);
 
+  /** overall → pick a category → pick a subject (the deepest level) */
+  const [level, setLevel] = useState<Level>("overall");
+  const [categoryId, setCategoryId] = useState<string>("");
+  const [subjectName, setSubjectName] = useState<string>("");
+  const [metric, setMetric] = useState<Metric>("score");
+  const [search, setSearch] = useState("");
+
   useEffect(() => {
     let cancelled = false;
     api<LeaderboardData>("/api/leaderboard")
       .then((d) => {
         if (cancelled) return;
         setData(d);
+        setCategoryId((prev) => prev || d.categories[0]?.id || "");
+        setSubjectName((prev) => prev || d.subjects[0]?.name || "");
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load leaderboard");
@@ -134,6 +191,20 @@ export function LeaderboardView() {
       cancelled = true;
     };
   }, []);
+
+  const filteredCategories = useMemo(() => {
+    if (!data) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return data.categories;
+    return data.categories.filter((c) => c.name.toLowerCase().includes(q));
+  }, [data, search]);
+
+  const filteredSubjects = useMemo(() => {
+    if (!data) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return data.subjects;
+    return data.subjects.filter((s) => s.name.toLowerCase().includes(q));
+  }, [data, search]);
 
   if (loading) {
     return (
@@ -147,95 +218,154 @@ export function LeaderboardView() {
   }
 
   const me = user?.id ?? "";
+  const activeCategory = data.categories.find((c) => c.id === categoryId) ?? data.categories[0] ?? null;
+  const activeSubject = data.subjects.find((s) => s.name === subjectName) ?? data.subjects[0] ?? null;
+
+  const boards: ScopeBoards =
+    level === "overall"
+      ? data.overall
+      : level === "category"
+        ? activeCategory ?? { byScore: [], byXp: [], byAccuracy: [] }
+        : activeSubject ?? { byScore: [], byXp: [], byAccuracy: [] };
+
+  const entries = metric === "score" ? boards.byScore : metric === "xp" ? boards.byXp : boards.byAccuracy;
+
+  const title =
+    level === "overall"
+      ? "Overall rankings"
+      : level === "category"
+        ? `${activeCategory?.name ?? "Category"} rankings`
+        : `${activeSubject?.name ?? "Subject"} rankings`;
+
+  const emptyText =
+    level === "overall"
+      ? "Nobody has recorded results yet. Be the first champion!"
+      : level === "category"
+        ? `No one has answered a question in ${activeCategory?.name ?? "this category"} yet.`
+        : `No one has answered a ${activeSubject?.name ?? "subject"} question yet.`;
 
   return (
     <div className="space-y-4">
       <div>
         <h2 className="font-display text-lg">🏆 Hall of Champions</h2>
-        <p className="text-sm text-muted-foreground">Rankings across all {data.totalPlayers} registered players. Fight battles to climb!</p>
+        <p className="text-sm text-muted-foreground">
+          Rankings across all {data.totalPlayers} registered players. Drill down from overall, into a category, then
+          into a subject - the deepest level.
+        </p>
       </div>
 
-      <Tabs defaultValue="score">
-        <TabsList className="flex w-full flex-wrap justify-start gap-1 overflow-x-auto">
-          <TabsTrigger value="score" className="gap-1.5"><Trophy className="h-3.5 w-3.5" /> Scores</TabsTrigger>
-          <TabsTrigger value="xp" className="gap-1.5"><Star className="h-3.5 w-3.5" /> XP</TabsTrigger>
-          <TabsTrigger value="accuracy" className="gap-1.5"><Target className="h-3.5 w-3.5" /> Accuracy</TabsTrigger>
-          {data.subjects.map((s) => (
-            <TabsTrigger key={`s-${s.name}`} value={`subject-${s.name}`} className="gap-1.5">
-              📚 {s.name}
-            </TabsTrigger>
-          ))}
-          {data.categories.map((c) => (
-            <TabsTrigger key={`c-${c.id}`} value={`category-${c.id}`} className="gap-1.5">
-              🗺️ {c.name}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      {/* level: overall / category / subject + search */}
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-2 p-3">
+          <div className="flex rounded-lg border border-border p-0.5">
+            {LEVELS.map((l) => (
+              <button
+                key={l.id}
+                onClick={() => setLevel(l.id)}
+                aria-pressed={level === l.id}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                  level === l.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+          <div className="relative min-w-44 flex-1">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={level === "subject" ? "Search subjects…" : "Search categories…"}
+              className="pl-8 text-xs"
+              aria-label={level === "subject" ? "Search subjects" : "Search categories"}
+              disabled={level === "overall"}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="score" className="mt-3">
-          <Card className="panel-frame">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Best single-battle scores</CardTitle>
-              <CardDescription>Damage dealt + victory bonus + streak rewards</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-1.5">
-              <BoardList entries={data.byScore} me={me} metric="score" onView={setViewingId} empty="No battles recorded yet. Be the first champion!" />
-            </CardContent>
-          </Card>
-        </TabsContent>
+      {/* category / subject picker */}
+      {level !== "overall" && (
+        <div className="flex flex-wrap gap-1.5">
+          {level === "category"
+            ? filteredCategories.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setCategoryId(c.id)}
+                  aria-pressed={activeCategory?.id === c.id}
+                  className={cn(
+                    "rounded-lg border-2 px-3 py-1.5 text-xs font-semibold transition-colors",
+                    activeCategory?.id === c.id
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:border-primary/50 hover:bg-accent",
+                  )}
+                >
+                  🗺️ {c.name}
+                </button>
+              ))
+            : filteredSubjects.map((s) => (
+                <button
+                  key={s.name}
+                  onClick={() => setSubjectName(s.name)}
+                  aria-pressed={activeSubject?.name === s.name}
+                  className={cn(
+                    "rounded-lg border-2 px-3 py-1.5 text-xs font-semibold transition-colors",
+                    activeSubject?.name === s.name
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:border-primary/50 hover:bg-accent",
+                  )}
+                >
+                  📚 {s.name}
+                </button>
+              ))}
+          {(level === "category" ? filteredCategories : filteredSubjects).length === 0 && (
+            <p className="px-1 py-2 text-xs text-muted-foreground">
+              No {level === "category" ? "categories" : "subjects"} match &ldquo;{search}&rdquo;.
+            </p>
+          )}
+        </div>
+      )}
 
-        <TabsContent value="xp" className="mt-3">
-          <Card className="panel-frame">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Most experienced scholars</CardTitle>
-              <CardDescription>Total XP from every correct answer and victory</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-1.5">
-              <BoardList entries={data.byXp} me={me} metric="xp" onView={setViewingId} empty="No XP earned yet." />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="accuracy" className="mt-3">
-          <Card className="panel-frame">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Sharpest minds overall</CardTitle>
-              <CardDescription>Correct answers ÷ every question answered, across all subjects</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-1.5">
-              <BoardList entries={data.byAccuracy} me={me} metric="accuracy" onView={setViewingId} empty="No answers recorded yet." />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {data.subjects.map((s) => (
-          <TabsContent key={`s-${s.name}`} value={`subject-${s.name}`} className="mt-3">
-            <Card className="panel-frame">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Best in {s.name}</CardTitle>
-                <CardDescription>Accuracy on {s.name} questions (min. 1 answered)</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-1.5">
-                <BoardList entries={s.entries} me={me} metric="accuracy" onView={setViewingId} empty={`No one has answered a ${s.name} question yet.`} />
-              </CardContent>
-            </Card>
-          </TabsContent>
+      {/* metric switcher - the same three at every level */}
+      <div className="flex rounded-lg border border-border p-0.5">
+        {METRICS.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => setMetric(m.id)}
+            aria-pressed={metric === m.id}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+              metric === m.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {m.icon} {m.label}
+          </button>
         ))}
+      </div>
 
-        {data.categories.map((c) => (
-          <TabsContent key={`c-${c.id}`} value={`category-${c.id}`} className="mt-3">
-            <Card className="panel-frame">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Masters of {c.name}</CardTitle>
-                <CardDescription>Accuracy inside the {c.name} adventure (min. 1 answered)</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-1.5">
-                <BoardList entries={c.entries} me={me} metric="accuracy" onView={setViewingId} empty={`No one has fought in ${c.name} yet.`} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
-      </Tabs>
+      <Card className="panel-frame">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">{title}</CardTitle>
+          <CardDescription>
+            {metric === "score" && "Best single-battle score"}
+            {metric === "xp" && "Total XP earned"}
+            {metric === "accuracy" && "Correct ÷ every question answered in this scope"}
+            {level !== "overall" && " · score and XP show lifetime totals"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-1.5">
+          <BoardList
+            entries={entries}
+            me={me}
+            metric={metric}
+            onView={setViewingId}
+            empty={emptyText}
+          />
+        </CardContent>
+      </Card>
+
       <ProfileDialog userId={viewingId} onClose={() => setViewingId(null)} />
     </div>
   );

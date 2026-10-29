@@ -78,9 +78,31 @@ export async function POST(req: Request, { params }: Params) {
       }
     : computeAnswer(question.difficulty as Difficulty, wasCorrect, battleDoc.streak, tier);
 
+  // --- consumable effects queued by /api/battle/[id]/item ---
+  let damage = outcome.damageDealt;
+  let taken = outcome.damageTaken;
+  let usedBoost = false;
+  let usedStun = false;
+  let usedConfusion = false;
+  if (wasCorrect && battleDoc.damageBoostPending && damage > 0) {
+    damage = Math.round(damage * 1.5);
+    usedBoost = true;
+  }
+  if (!wasCorrect && battleDoc.stunPending) {
+    // the enemy is stunned - it cannot hit back this question
+    taken = 0;
+    usedStun = true;
+  }
+  if (!wasCorrect && battleDoc.confusionPending) {
+    // the enemy hits itself instead of the player
+    damage += Math.max(1, Math.round(tier.atkMin));
+    taken = 0;
+    usedConfusion = true;
+  }
+
   // --- apply combat result ---
-  let enemyHp = Math.max(0, battleDoc.enemyHp - outcome.damageDealt);
-  const playerHp = Math.max(0, battleDoc.playerHp - outcome.damageTaken);
+  let enemyHp = Math.max(0, battleDoc.enemyHp - damage);
+  const playerHp = Math.max(0, battleDoc.playerHp - taken);
   const streak = outcome.streak;
   const bestStreak = Math.max(battleDoc.bestStreak, streak);
   const score = battleDoc.score + outcome.scoreGained;
@@ -146,7 +168,9 @@ export async function POST(req: Request, { params }: Params) {
         // Official enemies drop gold; harder enemies drop more and have a higher
         // chance to drop a gem for the gacha.
         goldDrop = cryptoIntInclusive(8 + tier.tier * 6, 18 + tier.tier * 6);
-        const gemChance = Math.min(0.05 + tier.tier * 0.03, 0.6);
+        // Midas Potion / Lucky Clover bonuses bought during this adventure
+        if (battleDoc.goldBonus > 0) goldDrop = Math.round(goldDrop * (1 + battleDoc.goldBonus));
+        const gemChance = Math.min(0.05 + tier.tier * 0.03 + (battleDoc.gemBonus ?? 0), 0.95);
         if (cryptoRandom() < gemChance) gemDrop = 1;
         await User.updateOne(
           { _id: user.id },
@@ -285,6 +309,9 @@ export async function POST(req: Request, { params }: Params) {
     questions: allIds,
     questionsRight: battleDoc.questionsRight + (wasCorrect ? 1 : 0),
     questionsWrong: battleDoc.questionsWrong + (wasCorrect ? 0 : 1),
+    damageBoostPending: battleDoc.damageBoostPending && !usedBoost,
+    stunPending: battleDoc.stunPending && !usedStun,
+    confusionPending: battleDoc.confusionPending && !usedConfusion,
     questionDeadlineAt: Date.now() + (nextQuestion?.timerSeconds ?? 30) * 1000,
   });
   await battleDoc.save();
@@ -294,8 +321,8 @@ export async function POST(req: Request, { params }: Params) {
   const durability = await applyBattleWear(
     User,
     user.id,
-    outcome.damageDealt > 0,
-    outcome.damageTaken > 0,
+    damage > 0,
+    taken > 0,
   );
   if (durability.weaponBroken) {
     console.log(`[durability] weapon broke for user ${user.id}`);
@@ -310,8 +337,8 @@ export async function POST(req: Request, { params }: Params) {
   const result: AnswerResultDTO = {
     correct: wasCorrect,
     correctIndex: question.correctIndex,
-    damageDealt: outcome.damageDealt,
-    damageTaken: outcome.damageTaken,
+    damageDealt: damage,
+    damageTaken: taken,
     xpGained: outcome.xpGained,
     scoreGained: outcome.scoreGained,
     streak,
@@ -334,6 +361,8 @@ export async function POST(req: Request, { params }: Params) {
     accuracy: updatedBattle.questionsRight + updatedBattle.questionsWrong > 0
       ? Math.round((updatedBattle.questionsRight / (updatedBattle.questionsRight + updatedBattle.questionsWrong)) * 100)
       : null,
+    questionsRight: updatedBattle.questionsRight,
+    questionsWrong: updatedBattle.questionsWrong,
     goldDrop,
     gemDrop,
     monsterDefeated: nextMonster !== null,

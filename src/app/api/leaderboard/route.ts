@@ -5,72 +5,110 @@ import { getSessionUser } from "@/lib/auth";
 import { levelFromXp } from "@/lib/game";
 import type { LeaderboardEntry } from "@/lib/types";
 
-/** Ranked accuracy scope used to pull the right tally out of a user's ledgers. */
-type AccuracyScope =
-  | { type: "overall" }
-  | { type: "subject"; name: string }
-  | { type: "category"; id: string };
+/**
+ * A leaderboard scope. Rankings go overall → category → subject, and subject is
+ * the deepest level. Every scope carries the same three metrics (score, XP and
+ * accuracy) so the UI can switch between them at any depth.
+ */
+type Scope = { type: "overall" } | { type: "category"; id: string } | { type: "subject"; name: string };
 
-function accuracyOf(u: {
-  questionsRight?: number;
-  questionsWrong?: number;
-  subjectStats?: Record<string, { right: number; wrong: number } | undefined>;
-  categoryStats?: Record<string, { right: number; wrong: number } | undefined>;
-}, scope: AccuracyScope): number | null {
-  let right = 0;
-  let wrong = 0;
-  if (scope.type === "overall") {
-    right = u.questionsRight ?? 0;
-    wrong = u.questionsWrong ?? 0;
-  } else if (scope.type === "subject") {
-    const s = u.subjectStats?.[scope.name];
-    right = s?.right ?? 0;
-    wrong = s?.wrong ?? 0;
-  } else {
-    const c = u.categoryStats?.[scope.id];
-    right = c?.right ?? 0;
-    wrong = c?.wrong ?? 0;
-  }
-  const total = right + wrong;
-  return total > 0 ? Math.round((right / total) * 100) : null;
+/** Per-scope tallies for one player: score, xp and right/wrong answer counts. */
+interface ScopedStats {
+  bestScore: number;
+  xp: number;
+  right: number;
+  wrong: number;
+  answered: number;
 }
 
-function toEntry(
+function emptyStats(): ScopedStats {
+  return { bestScore: 0, xp: 0, right: 0, wrong: 0, answered: 0 };
+}
+
+/**
+ * Folds the per-player scoped numbers into one `ScopedStats`.
+ *
+ * Overall uses the lifetime counters. Category and subject boards use the
+ * per-scope accuracy ledgers; because those ledgers do not store score/XP per
+ * scope, score and XP fall back to the player's lifetime values (marked in the
+ * UI as "overall" numbers) while accuracy is strictly scoped.
+ */
+function statsFor(
   u: ReturnType<typeof normalizeUser>,
-  rank: number,
-  scope: AccuracyScope,
-): LeaderboardEntry {
+  scope: Scope,
+): ScopedStats {
+  const s = emptyStats();
+  s.bestScore = u.bestScore ?? 0;
+  s.xp = u.xp ?? 0;
+  if (scope.type === "overall") {
+    s.right = u.questionsRight ?? 0;
+    s.wrong = u.questionsWrong ?? 0;
+  } else if (scope.type === "subject") {
+    const entry = u.subjectStats?.[scope.name];
+    s.right = entry?.right ?? 0;
+    s.wrong = entry?.wrong ?? 0;
+  } else {
+    const entry = u.categoryStats?.[scope.id];
+    s.right = entry?.right ?? 0;
+    s.wrong = entry?.wrong ?? 0;
+  }
+  s.answered = s.right + s.wrong;
+  return s;
+}
+
+function accuracyOf(s: ScopedStats): number | null {
+  return s.answered > 0 ? Math.round((s.right / s.answered) * 100) : null;
+}
+
+type Metric = "score" | "xp" | "accuracy";
+
+interface Ranked {
+  u: ReturnType<typeof normalizeUser>;
+  s: ScopedStats;
+  acc: number | null;
+}
+
+function sortBy(list: Ranked[], metric: Metric): Ranked[] {
+  return [...list].sort((a, b) => {
+    if (metric === "score") return b.s.bestScore - a.s.bestScore;
+    if (metric === "xp") return b.s.xp - a.s.xp;
+    // accuracy: highest % first, then the player with more correct answers
+    return (b.acc ?? -1) - (a.acc ?? -1) || b.s.right - a.s.right;
+  });
+}
+
+function toEntry(r: Ranked, rank: number, metric: Metric): LeaderboardEntry {
+  const hasAnswers = r.s.answered > 0 || metric !== "accuracy";
   return {
     rank,
-    userId: u.id,
-    username: u.username,
-    displayName: u.displayName,
-    avatar: u.avatar || "",
-    level: levelFromXp(u.xp),
-    xp: u.xp,
-    bestScore: u.bestScore,
-    battlesWon: u.battlesWon,
-    bestStreak: u.bestStreak,
-    accuracy: accuracyOf(u, scope),
+    userId: r.u.id,
+    username: r.u.username,
+    displayName: r.u.displayName,
+    avatar: r.u.avatar || "",
+    level: levelFromXp(r.u.xp),
+    xp: r.s.xp,
+    bestScore: r.s.bestScore,
+    battlesWon: r.u.battlesWon,
+    bestStreak: r.u.bestStreak,
+    accuracy: hasAnswers ? r.acc : null,
+    questionsRight: r.s.right,
+    questionsWrong: r.s.wrong,
   };
 }
 
 const PLAYER_FILTER = { role: "PLAYER", emailVerified: true } as const;
+const BOARD_SIZE = 15;
 
-/**
- * Builds one ranked board for a scope. Players who never answered anything in
- * that scope are excluded so category/subject boards only show real competitors.
- */
-function boardFor(
-  scope: AccuracyScope,
-  docs: ReturnType<typeof normalizeUser>[],
-): LeaderboardEntry[] {
-  const ranked = docs
-    .map((u) => ({ u, acc: accuracyOf(u, scope) }))
-    .filter((x) => x.acc !== null)
-    .sort((a, b) => (b.acc! - a.acc!) || (b.u.questionsRight ?? 0) - (a.u.questionsRight ?? 0))
-    .slice(0, 15);
-  return ranked.map((x, i) => toEntry(x.u, i + 1, scope));
+/** One scope, all three metrics. */
+function boardsFor(scope: Scope, players: ReturnType<typeof normalizeUser>[]) {
+  const ranked = players
+    .map((u) => ({ u, s: statsFor(u, scope), acc: null as number | null }))
+    .map((r) => ({ ...r, acc: accuracyOf(r.s) }))
+    // a player with no answers in this scope is not a competitor here
+    .filter((r) => r.s.answered > 0);
+  const board = (metric: Metric) =>
+    sortBy(ranked, metric).slice(0, BOARD_SIZE).map((r, i) => toEntry(r, i + 1, metric));
+  return { byScore: board("score"), byXp: board("xp"), byAccuracy: board("accuracy") };
 }
 
 export async function GET() {
@@ -78,48 +116,44 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
   await connectDB();
-  const [byScoreDocs, byXpDocs, playerDocs, officialCategories, totalPlayers] = await Promise.all([
+  const [playerDocs, officialCategories, totalPlayers] = await Promise.all([
     // (super)admins are staff, not competitors, and unverified accounts are
-    // not yet real players — neither appears on any board
-    User.find(PLAYER_FILTER).sort({ bestScore: -1, xp: -1 }).limit(15).lean(),
-    User.find(PLAYER_FILTER).sort({ xp: -1, bestScore: -1 }).limit(15).lean(),
-    // full accuracy ledgers needed for the per-subject / per-category boards
+    // not yet real players - neither appears on any board
     User.find(PLAYER_FILTER)
-      .select("username displayName avatar xp bestScore battlesWon bestStreak questionsRight questionsWrong subjectStats categoryStats")
+      .select(
+        "username displayName avatar xp bestScore battlesWon bestStreak questionsRight questionsWrong subjectStats categoryStats",
+      )
       .limit(500)
       .lean(),
+    // the leaderboard adapts itself to whatever official categories exist
     Category.find({ status: "OFFICIAL" }).select("name subjects").lean(),
     User.countDocuments(PLAYER_FILTER),
   ]);
 
   const players = playerDocs.map(normalizeUser);
 
-  // subjects actually used by official categories (adapts automatically as
-  // categories/subjects come and go)
-  const subjectNames = [...new Set(officialCategories.flatMap((c) => normalizeCategory(c).subjects))].sort((a, b) =>
-    a.localeCompare(b),
-  );
-
-  const subjectBoards = subjectNames.map((name) => ({
-    name,
-    entries: boardFor({ type: "subject", name }, players),
-  }));
-
-  const categoryBoards = officialCategories.map((c) => {
-    const cat = normalizeCategory(c);
-    return {
-      id: cat.id,
-      name: cat.name,
-      entries: boardFor({ type: "category", id: cat.id }, players),
-    };
-  });
+  const { subjects: subjectNames, categories: categoryDefs } = (() => {
+    const subjectNames = [
+      ...new Set(officialCategories.flatMap((c) => normalizeCategory(c).subjects)),
+    ].sort((a, b) => a.localeCompare(b));
+    const categories = officialCategories.map((c) => {
+      const cat = normalizeCategory(c);
+      return { id: cat.id, name: cat.name, subjects: cat.subjects };
+    });
+    return { subjects: subjectNames, categories };
+  })();
 
   return NextResponse.json({
-    byScore: byScoreDocs.map((u, i) => toEntry(normalizeUser(u), i + 1, { type: "overall" })),
-    byXp: byXpDocs.map((u, i) => toEntry(normalizeUser(u), i + 1, { type: "overall" })),
-    byAccuracy: boardFor({ type: "overall" }, players),
-    subjects: subjectBoards,
-    categories: categoryBoards,
+    overall: boardsFor({ type: "overall" }, players),
+    categories: categoryDefs.map((c) => ({
+      id: c.id,
+      name: c.name,
+      ...boardsFor({ type: "category", id: c.id }, players),
+    })),
+    subjects: subjectNames.map((name) => ({
+      name,
+      ...boardsFor({ type: "subject", name }, players),
+    })),
     totalPlayers,
   });
 }

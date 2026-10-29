@@ -20,6 +20,8 @@ import { StatBar, DifficultyBadge, subjectIcon } from "@/components/quizrpg/bits
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/store";
 import { cryptoShuffle } from "@/lib/game";
+import { itemById } from "@/lib/adventure-data";
+import { useToast } from "@/hooks/use-toast";
 import type { BattleStateDTO, AnswerResultDTO } from "@/lib/types";
 
 interface BattleScreenProps {
@@ -132,6 +134,16 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
   const [shake, setShake] = useState<"enemy" | "player" | null>(null);
   const floatyId = useRef(0);
   const busyRef = useRef(false);
+  const { toast } = useToast();
+  /** local loadout mirror - emptied as items are used */
+  const [loadout, setLoadout] = useState<(string | null)[]>(() => {
+    const raw = (initialBattle.loadout ?? []).slice(0, 3);
+    // always render exactly three slots
+    return [...raw, null, null, null].slice(0, 3) as (string | null)[];
+  });
+  const [usingSlot, setUsingSlot] = useState<number | null>(null);
+  /** extra seconds added by a Focus Elixir - bumps the local question deadline */
+  const [deadline, setDeadline] = useState<number | undefined>(initialBattle.questionDeadlineAt);
 
   const q = battle.question;
   const phase = revealed ? "reveal" : "asking";
@@ -224,6 +236,41 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
     }
     busyRef.current = false;
     setPending(false);
+  }
+
+  async function consumeItem(slot: number) {
+    if (busyRef.current || phase === "reveal") return;
+    if (!loadout[slot]) return;
+    busyRef.current = true;
+    setUsingSlot(slot);
+    try {
+      const res = await api<{
+        itemId: string;
+        playerHp: number;
+        playerMaxHp: number;
+        extraSeconds: number;
+        loadout: (string | null)[];
+        message: string;
+      }>(`/api/battle/${battle.id}/item`, { method: "POST", body: JSON.stringify({ slot }) });
+      setLoadout(res.loadout);
+      setBattle((b) => ({ ...b, playerHp: res.playerHp, playerMaxHp: res.playerMaxHp }));
+      if (res.extraSeconds > 0) {
+        setDeadline((d) => (d ?? Date.now()) + res.extraSeconds * 1000);
+      }
+      if (res.playerHp > battle.playerHp) {
+        pushFloaty(`+${res.playerHp - battle.playerHp}`, "player", "miss");
+      }
+      toast({ title: `${itemById(res.itemId)?.name ?? "Item"} used`, description: res.message });
+    } catch (err) {
+      toast({
+        title: "Could not use item",
+        description: err instanceof Error ? err.message : "",
+        variant: "destructive",
+      });
+    } finally {
+      busyRef.current = false;
+      setUsingSlot(null);
+    }
   }
 
   async function flee() {
@@ -370,9 +417,39 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
               timerKey={`${battle.id}:${battle.questionNumber}:${q.id}`}
               active={phase === "asking"}
               onTimeout={() => void submitAnswer(-1)}
-              storedDeadline={battle.questionDeadlineAt}
+              storedDeadline={deadline}
             />
           </div>
+
+          {/* battle loadout - consumables brought from the backpack */}
+          {loadout.some(Boolean) && (
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Battle items">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Items</span>
+              {loadout.map((itemId, i) => {
+                const def = itemId ? itemById(itemId) : undefined;
+                return (
+                  <motion.button
+                    key={`${i}-${itemId ?? "empty"}`}
+                    type="button"
+                    whileTap={{ scale: 0.94 }}
+                    disabled={!def || pending || phase === "reveal" || usingSlot !== null}
+                    onClick={() => void consumeItem(i)}
+                    title={def ? `${def.name} - ${def.description}` : "Empty slot"}
+                    aria-label={def ? `Use ${def.name}` : `Empty item slot ${i + 1}`}
+                    className={cn(
+                      "flex h-9 items-center gap-1 rounded-lg border px-2 text-xs font-semibold transition-colors",
+                      def
+                        ? "border-primary/50 bg-primary/10 hover:bg-primary/20"
+                        : "border-dashed border-border/60 text-muted-foreground opacity-50",
+                    )}
+                  >
+                    {usingSlot === i ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span aria-hidden="true">🧪</span>}
+                    <span className="max-w-24 truncate">{def ? def.name : "—"}</span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          )}
 
           <AnimatePresence mode="wait">
             <motion.p

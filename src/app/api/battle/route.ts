@@ -29,7 +29,7 @@ export async function GET() {
   const currentId = ids[battle.cursor];
   const qDoc = currentId ? await Question.findById(currentId).lean() : null;
   const current = qDoc ? toBattleQuestion(normalizeQuestion(qDoc)) : null;
-  return NextResponse.json({ battle: toBattleState(battle, current) });
+  return NextResponse.json({ battle: toBattleState({ ...battle, loadout: user.loadout }, current) });
 }
 
 /** Start a new battle. */
@@ -179,7 +179,7 @@ export async function POST(req: Request) {
   });
 
   return NextResponse.json(
-    { battle: toBattleState(normalizeBattle(created.toObject()), questions[0]) },
+    { battle: toBattleState({ ...normalizeBattle(created.toObject()), loadout: user.loadout }, questions[0]) },
     { status: 201 },
   );
 }

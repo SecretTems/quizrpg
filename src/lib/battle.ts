@@ -145,6 +145,8 @@ export function toBattleState(
     cursor: number;
     /** epoch ms deadline for the current question (survives tab/window switches) */
     questionDeadlineAt?: number;
+    /** battle loadout snapshot of the player's 3 consumable slots */
+    loadout?: (string | null)[];
   },
   currentQuestion: BattleQuestion | null,
 ): BattleStateDTO {
@@ -177,6 +179,7 @@ export function toBattleState(
     totalSeen: ids.length,
     waveNumber: battle.wave ?? 1,
     questionDeadlineAt: battle.questionDeadlineAt ?? undefined,
+    loadout: battle.loadout,
   };
 }
 

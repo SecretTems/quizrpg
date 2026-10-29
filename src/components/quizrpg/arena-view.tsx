@@ -640,7 +640,21 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                       {result.accuracy != null ? `${result.accuracy}%` : "—"}
                     </p>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div className="rounded-md border border-emerald-600/30 bg-emerald-500/10 px-2 py-1.5 text-center">
+                      <p className="text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                        {result.questionsRight ?? 0}
+                      </p>
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Right</p>
+                    </div>
+                    <div className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-center">
+                      <p className="text-base font-bold tabular-nums text-destructive">
+                        {result.questionsWrong ?? 0}
+                      </p>
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Wrong</p>
+                    </div>
+                  </div>
+                  <p className="mt-1.5 text-[10px] text-muted-foreground">
                     Correct answers ÷ every question answered this adventure
                   </p>
                 </div>

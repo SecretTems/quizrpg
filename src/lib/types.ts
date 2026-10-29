@@ -98,6 +98,8 @@ export interface BattleStateDTO {
   totalMonsters?: number;
   /** epoch ms deadline for the current question (survives tab/window switches) */
   questionDeadlineAt?: number;
+  /** the player's battle loadout: 3 consumable slots (null = empty) */
+  loadout?: (string | null)[];
 }
 
 export interface AnswerResultDTO {
@@ -127,6 +129,10 @@ export interface AnswerResultDTO {
   goldDrop: number;
   /** gems earned from the victory loot drop (0 otherwise) */
   gemDrop: number;
+  /** questions answered correctly this adventure */
+  questionsRight: number;
+  /** questions answered wrong or timed out this adventure */
+  questionsWrong: number;
   /** accuracy rating % for this adventure (right / answered so far); null = no answers yet */
   accuracy: number | null;
   /** true when a category monster fell and the next one in the lineup stepped in */
@@ -156,4 +162,8 @@ export interface LeaderboardEntry {
   bestStreak: number;
   /** accuracy % across answered questions (null = nothing answered) */
   accuracy: number | null;
+  /** correct answers in the board's scope */
+  questionsRight: number;
+  /** wrong answers in the board's scope */
+  questionsWrong: number;
 }

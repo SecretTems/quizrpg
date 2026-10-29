@@ -250,6 +250,16 @@ export interface IBattle extends Document {
   questionsRight: number;
   /** wrong answers / timeouts in this battle */
   questionsWrong: number;
+  /** consumable queued: the next correct answer deals +50% damage */
+  damageBoostPending: boolean;
+  /** consumable queued: the enemy skips its hit on the next wrong answer */
+  stunPending: boolean;
+  /** consumable queued: a Miss makes the enemy damage itself instead */
+  confusionPending: boolean;
+  /** fractional gem-drop bonus for this adventure (0.25 = +25%) */
+  gemBonus: number;
+  /** fractional gold-drop bonus for this adventure (0.3 = +30%) */
+  goldBonus: number;
     /** question ids for this battle, in order; cursor points at the active one */
     questions: string[];
     cursor: number;
@@ -307,6 +317,11 @@ const BattleSchema = new Schema<IBattle>(
     xpEarned: { type: Number, default: 0 },
     questionsRight: { type: Number, default: 0, min: 0 },
     questionsWrong: { type: Number, default: 0, min: 0 },
+    damageBoostPending: { type: Boolean, default: false },
+    stunPending: { type: Boolean, default: false },
+    confusionPending: { type: Boolean, default: false },
+    gemBonus: { type: Number, default: 0, min: 0 },
+    goldBonus: { type: Number, default: 0, min: 0 },
     questions: { type: [String], default: [] },
     cursor: { type: Number, default: 0 },
     status: { type: String, enum: ["ONGOING", "WON", "LOST", "FLED"], default: "ONGOING" },
@@ -550,6 +565,11 @@ export interface NormalizedBattle {
   xpEarned: number;
   questionsRight: number;
   questionsWrong: number;
+  damageBoostPending?: boolean;
+  stunPending?: boolean;
+  confusionPending?: boolean;
+  gemBonus?: number;
+  goldBonus?: number;
   questions: string[];
   cursor: number;
   status: "ONGOING" | "WON" | "LOST" | "FLED";
