@@ -21,7 +21,7 @@ export async function GET(_req: Request, { params }: Params) {
   return NextResponse.json({ category: normalizeCategory(doc) });
 }
 
-const APPROVAL_VOTES_REQUIRED = 3;
+const APPROVAL_VOTES_REQUIRED = 1;
 
 export async function PUT(req: Request, { params }: Params) {
   const user = await getSessionUser();
