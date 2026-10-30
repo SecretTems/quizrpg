@@ -142,8 +142,18 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
     return [...raw, null, null, null].slice(0, 3) as (string | null)[];
   });
   const [usingSlot, setUsingSlot] = useState<number | null>(null);
-  /** extra seconds added by a Focus Elixir - bumps the local question deadline */
-  const [deadline, setDeadline] = useState<number | undefined>(initialBattle.questionDeadlineAt);
+  /** extra seconds added by consumables (Focus Elixir), keyed by the question they apply to */
+  const [deadlineBonus, setDeadlineBonus] = useState<{ questionId: string; ms: number } | null>(null);
+  /**
+   * The active deadline always comes from the current battle question - never a
+   * stale copy of the first one. A consumable bonus adds on top only while the
+   * question it was bought for is still up.
+   */
+  const deadline =
+    (battle.questionDeadlineAt ?? Date.now()) +
+    (deadlineBonus && deadlineBonus.questionId === battle.question?.id ? deadlineBonus.ms : 0);
+  /** the timer remounts per question, so a new one always starts from a fresh deadline */
+  const timerKey = `${battle.id}:${battle.questionNumber}:${battle.question?.id ?? "none"}`;
 
   const q = battle.question;
   const phase = revealed ? "reveal" : "asking";
@@ -254,8 +264,8 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
       }>(`/api/battle/${battle.id}/item`, { method: "POST", body: JSON.stringify({ slot }) });
       setLoadout(res.loadout);
       setBattle((b) => ({ ...b, playerHp: res.playerHp, playerMaxHp: res.playerMaxHp }));
-      if (res.extraSeconds > 0) {
-        setDeadline((d) => (d ?? Date.now()) + res.extraSeconds * 1000);
+      if (res.extraSeconds > 0 && battle.question) {
+        setDeadlineBonus({ questionId: battle.question.id, ms: res.extraSeconds * 1000 });
       }
       if (res.playerHp > battle.playerHp) {
         pushFloaty(`+${res.playerHp - battle.playerHp}`, "player", "miss");
@@ -294,6 +304,8 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
   useEffect(() => {
     displayOrderRef.current = displayOrder;
   }, [displayOrder]);
+
+
 
   if (!q) {
     return (
@@ -413,8 +425,8 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
               </span>
             </div>
             <QuestionTimer
-              key={q.id}
-              timerKey={`${battle.id}:${battle.questionNumber}:${q.id}`}
+              key={timerKey}
+              timerKey={timerKey}
               active={phase === "asking"}
               onTimeout={() => void submitAnswer(-1)}
               storedDeadline={deadline}

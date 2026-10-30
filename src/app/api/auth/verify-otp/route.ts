@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { User } from "@/lib/models";
-import { setSessionCookie } from "@/lib/auth";
+import { setSessionCookie, createResetTicket, resetTicketExpiresAt } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
@@ -42,12 +42,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, emailVerified: true });
     }
 
-    // password reset
+    // password reset - the OTP is single-use, so it is consumed here and a
+    // short-lived ticket authorizes the actual password change
+    const resetToken = createResetTicket();
     user.otpCode = null;
     user.otpExpires = null;
+    user.resetToken = resetToken;
+    user.resetTokenExpires = resetTicketExpiresAt();
     await user.save();
 
-    return NextResponse.json({ ok: true, resetToken: user._id.toString() });
+    return NextResponse.json({ ok: true, resetToken });
   } catch (err) {
     return NextResponse.json({ error: "OTP verification failed." }, { status: 500 });
   }

@@ -103,6 +103,8 @@ export function AuthScreen() {
   const [forgotStep, setForgotStep] = useState<"email" | "otp" | "newpass">("email");
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotCode, setForgotCode] = useState("");
+  /** ticket returned once the reset code is verified - authorizes the password change */
+  const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
   const handleLogin = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
@@ -232,6 +234,7 @@ export function AuthScreen() {
     setForgotStep("email");
     setForgotEmail("");
     setForgotCode("");
+    setResetToken("");
     setNewPassword("");
     setShowForgot(true);
   }, []);
@@ -256,10 +259,12 @@ export function AuthScreen() {
   const handleForgotOtp = useCallback(async () => {
     setBusy(true);
     try {
-      await api("/api/auth/verify-otp", {
+      const res = await api<{ ok: boolean; resetToken?: string }>("/api/auth/verify-otp", {
         method: "POST",
         body: JSON.stringify({ email: forgotEmail, code: forgotCode, purpose: "reset" }),
       });
+      // the OTP is consumed by this call - keep the ticket it returns
+      setResetToken(res.resetToken ?? "");
       setForgotStep("newpass");
     } catch (err: any) {
       toast({ title: "Invalid code", description: err?.message || "Could not verify code.", variant: "destructive" });
@@ -274,16 +279,17 @@ export function AuthScreen() {
     try {
       await api("/api/auth/reset-password", {
         method: "POST",
-        body: JSON.stringify({ email: forgotEmail, code: forgotCode, password: newPassword }),
+        body: JSON.stringify({ email: forgotEmail, resetToken, code: forgotCode, password: newPassword }),
       });
       setShowForgot(false);
+      setResetToken("");
       toast({ title: "Password reset", description: "Log in with your new password." });
     } catch (err: any) {
       toast({ title: "Reset failed", description: err?.message || "Could not reset password.", variant: "destructive" });
     } finally {
       setBusy(false);
     }
-  }, [forgotEmail, forgotCode, newPassword, toast]);
+  }, [forgotEmail, forgotCode, resetToken, newPassword, toast]);
 
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden px-4 py-10">

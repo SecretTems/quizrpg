@@ -144,6 +144,24 @@ export function otpExpiresAt(): number {
   return Date.now() + OTP_TTL_MS;
 }
 
+/* ---------- password-reset ticket ---------- */
+
+/** How long a verified reset ticket stays usable. */
+export const RESET_TICKET_TTL_MS = 1000 * 60 * 15; // 15 minutes
+
+/**
+ * Minted once the reset OTP is verified. The OTP itself is single-use and is
+ * cleared at that moment, so the pending password change is authorized by this
+ * random ticket instead of a value the user could replay.
+ */
+export function createResetTicket(): string {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+export function resetTicketExpiresAt(): number {
+  return Date.now() + RESET_TICKET_TTL_MS;
+}
+
 /** Send an OTP email via SMTP (nodemailer). Falls back to console log when SMTP is not configured. */
 export async function sendOtpEmail(email: string, code: string, purpose: "verify" | "reset") {
   const purposeLabel = purpose === "verify" ? "email verification" : "password reset";

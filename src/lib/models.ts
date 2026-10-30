@@ -64,6 +64,14 @@ export interface IUser extends Document {
   otpCode: string | null;
   /** epoch ms when the OTP code expires */
   otpExpires: number | null;
+  /**
+   * Short-lived ticket minted after a reset OTP is verified. The verify step
+   * consumes otpCode, so the password change needs its own grant - this proves
+   * the caller verified the code without keeping the code reusable.
+   */
+  resetToken: string | null;
+  /** epoch ms when the reset ticket expires */
+  resetTokenExpires: number | null;
   /** 2FA is enabled for this account (admins/super admins) */
   twoFactorEnabled: boolean;
   /** base32 secret for TOTP 2FA */
@@ -134,6 +142,8 @@ const UserSchema = new Schema<IUser>(
     emailVerified: { type: Boolean, default: false },
     otpCode: { type: String, default: null },
     otpExpires: { type: Number, default: null },
+    resetToken: { type: String, default: null },
+    resetTokenExpires: { type: Number, default: null },
     twoFactorEnabled: { type: Boolean, default: false },
     twoFactorSecret: { type: String, default: null },
     loginFailures: { type: Number, default: 0, min: 0 },

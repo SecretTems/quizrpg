@@ -22,9 +22,12 @@ export async function POST(req: Request) {
     const code = generateOtp();
     const expires = otpExpiresAt();
 
+    // a fresh code invalidates any reset ticket minted from an earlier one
     await User.findByIdAndUpdate(user._id, {
       otpCode: code,
       otpExpires: expires,
+      resetToken: null,
+      resetTokenExpires: null,
     });
 
     await sendOtpEmail(email, code, "reset");
