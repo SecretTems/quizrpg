@@ -1,4 +1,4 @@
-// One-off cleanup: delete PENDING questions/categories whose owner no longer exists.
+
 import mongoose from "mongoose";
 await mongoose.connect(process.env.MONGODB_URI);
 const con = mongoose.connection;

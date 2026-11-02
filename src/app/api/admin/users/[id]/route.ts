@@ -8,13 +8,6 @@ type Params = { params: Promise<{ id: string }> };
 
 const AVATAR_IMAGE_RE = /^data:image\/(png|jpeg|webp|gif);base64,/;
 
-/**
- * Staff actions on a user account. Supports both:
- * - moderation: { displayName?, avatar? } — edit a player's public profile
- *   (admins and super admins can moderate players and admins; super admins
- *   themselves cannot be moderated by anyone else)
- * - role change: { role: "ADMIN" | "PLAYER" } — super admins only
- */
 export async function PATCH(req: Request, { params }: Params) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Admin access required." }, { status: 403 });
@@ -34,7 +27,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const body = await req.json();
   const update: Record<string, unknown> = {};
 
-  // ----- moderation: display name / avatar -----
+  
   if (typeof body.displayName === "string") {
     const displayName = body.displayName.trim().slice(0, 30);
     if (!displayName) {
@@ -46,7 +39,7 @@ export async function PATCH(req: Request, { params }: Params) {
   if (typeof body.avatar === "string") {
     const avatar = body.avatar.trim();
     if (avatar === "") {
-      update.avatar = ""; // explicit clear → back to the default emoji
+      update.avatar = ""; 
     } else if (!AVATAR_IMAGE_RE.test(avatar) || avatar.length > 400_000) {
       return NextResponse.json({ error: "Avatar image is invalid or too large." }, { status: 400 });
     } else {
@@ -54,7 +47,7 @@ export async function PATCH(req: Request, { params }: Params) {
     }
   }
 
-  // ----- role change (super admins only) -----
+  
   const role = String(body.role ?? "").toUpperCase();
   if (role) {
     if (admin.role !== "SUPER_ADMIN") {
@@ -78,7 +71,6 @@ export async function PATCH(req: Request, { params }: Params) {
   return NextResponse.json({ ok: true });
 }
 
-/** Delete a user and all of their questions/battles. Only super admins may delete; cannot delete self or another super admin. */
 export async function DELETE(_req: Request, { params }: Params) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Admin access required." }, { status: 403 });
@@ -101,7 +93,7 @@ export async function DELETE(_req: Request, { params }: Params) {
     return NextResponse.json({ error: "Super admins cannot be deleted." }, { status: 403 });
   }
 
-  // manual cascade (MongoDB has no cross-collection FK enforcement)
+  
   await Question.deleteMany({ ownerId: id });
   await Battle.deleteMany({ userId: id });
   await User.findByIdAndDelete(id);

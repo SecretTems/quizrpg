@@ -1,7 +1,6 @@
-/**
- * Adventure content - starter gear, shop catalog, gacha pool, starter categories.
- * Pure data, shared by server seeding and UI display.
- */
+
+
+
 
 export interface ItemDef {
   id: string;
@@ -13,17 +12,15 @@ export interface ItemDef {
   price: number;
   description: string;
   unique: boolean;
-  /**
-   * Optional artwork, e.g. "/images/items/w-iron-sword.png".
-   * See README → "Adding item images" for the full how-to.
-   * When omitted, the UI falls back to SLOT_ICON.
-   */
+  
+
+
   image?: string;
-  /** battle modifiers (epic/legendary gear) - ids into EQUIPMENT_MODIFIERS */
+  
   modifiers?: string[];
 }
 
-/** Fallback icon per slot, used when an item has no `image`. */
+
 export const SLOT_ICON: Record<ItemDef["slot"], string> = {
   WEAPON: "⚔️",
   ARMOR: "🛡️",
@@ -31,32 +28,32 @@ export const SLOT_ICON: Record<ItemDef["slot"], string> = {
   CONSUMABLE: "🧪",
 };
 
-/** All items in the game. `price > 0` = buyable in shop; else gacha-only. */
+
 export const ITEMS: ItemDef[] = [
-  /* ---- starter gear (granted on account creation) ---- */
+  
   { id: "w-wood-sword", name: "Wood Sword", slot: "WEAPON", atk: 10, def: 0, rarity: "COMMON", price: 0, description: "Every hero starts here. Deals 10 base damage.", unique: false },
   { id: "a-wood-armor", name: "Wood Armor", slot: "ARMOR", atk: 0, def: 1, rarity: "COMMON", price: 0, description: "Carved planks. Blocks 1 damage.", unique: false },
 
-  /* ---- weapons ---- */
+  
   { id: "w-iron-sword", name: "Iron Sword", slot: "WEAPON", atk: 4, def: 0, rarity: "COMMON", price: 120, description: "Reliable soldier steel.", unique: false },
   { id: "w-steel-saber", name: "Steel Saber", slot: "WEAPON", atk: 7, def: 0, rarity: "RARE", price: 280, description: "Quick, sharp, well-balanced.", unique: false },
   { id: "w-scholar-staff", name: "Scholar's Staff", slot: "WEAPON", atk: 9, def: 0, rarity: "RARE", price: 340, description: "Channels knowledge into force.", unique: false },
   { id: "w-runed-greatsword", name: "Runed Greatsword", slot: "WEAPON", atk: 12, def: 0, rarity: "EPIC", price: 0, description: "Runes glow with each correct answer.", unique: false, modifiers: ["HINT_CHANCE"] },
   { id: "w-dragon-fang", name: "Dragon Fang", slot: "WEAPON", atk: 16, def: 0, rarity: "LEGENDARY", price: 0, description: "Cut from the Quiz Dragon itself. Unique.", unique: true, modifiers: ["EXTRA_TIME", "HEAL_ON_CORRECT"] },
 
-  /* ---- armor ---- */
+  
   { id: "a-leather-vest", name: "Leather Vest", slot: "ARMOR", atk: 0, def: 4, rarity: "COMMON", price: 100, description: "Light, flexible protection.", unique: false },
   { id: "a-chain-mail", name: "Chain Mail", slot: "ARMOR", atk: 0, def: 7, rarity: "RARE", price: 260, description: "Interlocked rings shrug off claws.", unique: false },
   { id: "a-warden-plate", name: "Warden Plate", slot: "ARMOR", atk: 0, def: 11, rarity: "EPIC", price: 0, description: "Heavy plate etched with ward sigils.", unique: false, modifiers: ["HINT_CHANCE"] },
   { id: "a-aegis-robe", name: "Aegis Robe", slot: "ARMOR", atk: 0, def: 15, rarity: "LEGENDARY", price: 0, description: "Woven from cipher-threads. Unique.", unique: true, modifiers: ["EXTRA_TIME", "HEAL_ON_CORRECT"] },
 
-  /* ---- accessories ---- */
+  
   { id: "ac-lucky-coin", name: "Lucky Coin", slot: "ACCESSORY", atk: 1, def: 1, rarity: "COMMON", price: 80, description: "A bit of fortune in your pocket.", unique: false },
   { id: "ac-focus-charm", name: "Focus Charm", slot: "ACCESSORY", atk: 3, def: 0, rarity: "RARE", price: 200, description: "Sharpens the mind mid-battle.", unique: false },
   { id: "ac-guardian-band", name: "Guardian Band", slot: "ACCESSORY", atk: 0, def: 3, rarity: "RARE", price: 200, description: "A ring that softens blows.", unique: false },
   { id: "ac-sage-ring", name: "Sage Ring", slot: "ACCESSORY", atk: 5, def: 2, rarity: "EPIC", price: 0, description: "Wisdom of a hundred scholars. Unique.", unique: true, modifiers: ["EXTRA_TIME"] },
 
-  /* ---- consumables (shop) ---- */
+  
   { id: "c-minor-potion", name: "Minor Potion", slot: "CONSUMABLE", atk: 0, def: 0, rarity: "COMMON", price: 40, description: "Restores 30 HP during battle.", unique: false },
   { id: "c-great-potion", name: "Great Potion", slot: "CONSUMABLE", atk: 0, def: 0, rarity: "COMMON", price: 90, description: "Restores 60 HP during battle.", unique: false },
   { id: "c-damage-boost", name: "Damage Boost", slot: "CONSUMABLE", atk: 0, def: 0, rarity: "COMMON", price: 70, description: "Next hit deals +50% damage.", unique: false },
@@ -74,14 +71,14 @@ export function itemById(id: string): ItemDef | undefined {
   return ITEMS.find((i) => i.id === id);
 }
 
-/* ---------- gacha pool ---------- */
 
-/** Gem cost per pull. Focused (category-boosted) pulls cost more than random ones. */
+
+
 export const GACHA_COST_RANDOM = 3;
 export const GACHA_COST_FOCUSED = 5;
-/** How much a focused pull boosts the chosen category's share of the pool. */
+
 export const GACHA_FOCUS_WEIGHT_BONUS = 1.35;
-/** Max copies per rarity before extra duplicates are destroyed. */
+
 export const GACHA_MAX_COPIES: Record<ItemDef["rarity"], number> = {
   COMMON: 999,
   RARE: 5,
@@ -96,16 +93,16 @@ export const GACHA_POOL: { rarity: ItemDef["rarity"]; weight: number }[] = [
   { rarity: "LEGENDARY", weight: 3 },
 ];
 
-/** Gacha only drops non-starter, non-shop-exclusive equipment. */
+
 export const GACHA_POOL_ITEMS = ITEMS.filter(
   (i) => i.slot !== "CONSUMABLE" && i.price === 0 && !["w-wood-sword", "a-wood-armor"].includes(i.id),
 );
 
-/** Gacha focus categories - picking one boosts its odds slightly (focused pull). */
+
 export const GACHA_CATEGORIES = ["WEAPON", "ARMOR", "ACCESSORY", "CONSUMABLE"] as const;
 export type GachaCategory = (typeof GACHA_CATEGORIES)[number];
 
-/* ---------- starter Adventure categories (official) ---------- */
+
 
 export interface CategoryDef {
   name: string;

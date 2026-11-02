@@ -74,10 +74,8 @@ function PasswordInput({ id, name, value, onChange, required, placeholder, autoC
   );
 }
 
-/**
- * Security notice: admins/super admins who sign in without 2FA configured are
- * warned to enable it in Profile → Two-factor authentication.
- */
+
+
 function warnIfNo2FA(user: SafeUser) {
   if ((user.role === "ADMIN" || user.role === "SUPER_ADMIN") && !user.twoFactorEnabled) {
     window.dispatchEvent(new CustomEvent("quizrpg:2fa-warning", { detail: user.displayName }));
@@ -95,15 +93,15 @@ export function AuthScreen() {
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [totpCode, setTotpCode] = useState("");
   const [otpCode, setOtpCode] = useState("");
-  /** single-use token issued after the password step for admins with 2FA */
+  
   const [pendingToken, setPendingToken] = useState<string | null>(null);
 
-  // forgot password flow
+  
   const [showForgot, setShowForgot] = useState(false);
   const [forgotStep, setForgotStep] = useState<"email" | "otp" | "newpass">("email");
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotCode, setForgotCode] = useState("");
-  /** ticket returned once the reset code is verified - authorizes the password change */
+  
   const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
@@ -116,7 +114,7 @@ export function AuthScreen() {
         body: JSON.stringify(loginForm),
       });
       if (data.requires2FA && data.pendingToken) {
-        // step 2 - admins/super admins with 2FA get a code prompt
+        
         setPendingToken(data.pendingToken);
         setTotpCode("");
         toast({ title: "2FA required", description: "Enter the 6-digit code from your authenticator app." });
@@ -151,7 +149,7 @@ export function AuthScreen() {
         body: JSON.stringify({ pendingToken, totpCode }),
       });
       if (data.requiresLogin) {
-        // the pending session expired - fall back to the password step
+        
         setPendingToken(null);
         setTotpCode("");
         toast({ title: "2FA session expired", description: "Please log in again.", variant: "destructive" });
@@ -164,7 +162,7 @@ export function AuthScreen() {
       toast({ title: "Welcome back!", description: `Glory awaits, ${data.user.displayName}.` });
     } catch (err: any) {
       if (err?.requires2FA) {
-        // wrong code - the token was consumed, so request a fresh pending login
+        
         setPendingToken(null);
         toast({ title: "2FA failed", description: "Invalid code - log in again to retry.", variant: "destructive" });
       } else {
@@ -228,7 +226,7 @@ export function AuthScreen() {
     }
   }, [otpEmail, toast]);
 
-  /* ---------- forgot password flow ---------- */
+  
 
   const openForgot = useCallback(() => {
     setForgotStep("email");
@@ -263,7 +261,7 @@ export function AuthScreen() {
         method: "POST",
         body: JSON.stringify({ email: forgotEmail, code: forgotCode, purpose: "reset" }),
       });
-      // the OTP is consumed by this call - keep the ticket it returns
+      
       setResetToken(res.resetToken ?? "");
       setForgotStep("newpass");
     } catch (err: any) {
@@ -333,10 +331,10 @@ export function AuthScreen() {
                 <TabsTrigger value="register">Sign up</TabsTrigger>
               </TabsList>
 
-              {/* LOG IN */}
+              {}
               <TabsContent value="login" className="mt-4">
                 {pendingToken ? (
-                  /* step 2 - TOTP prompt shown only after a valid password + admin role */
+                  
                   <div className="space-y-4">
                     <div className="flex items-start gap-2 text-sm">
                       <KeyRound className="mt-0.5 h-4 w-4 shrink-0" />
@@ -410,7 +408,7 @@ export function AuthScreen() {
                 )}
               </TabsContent>
 
-              {/* SIGN UP */}
+              {}
               <TabsContent value="register" className="mt-4">
                 <form className="space-y-4" onSubmit={handleRegister}>
                   <div className="space-y-1.5">
@@ -467,7 +465,7 @@ export function AuthScreen() {
                 </form>
               </TabsContent>
 
-              {/* EMAIL OTP VERIFICATION */}
+              {}
               <TabsContent value="otp" className="mt-4">
                 <div className="space-y-4">
                   <div className="flex items-start gap-2 text-sm">
@@ -499,7 +497,7 @@ export function AuthScreen() {
         </Card>
       </motion.div>
 
-      {/* FORGOT PASSWORD MODAL */}
+      {}
       <Dialog open={showForgot} onOpenChange={setShowForgot}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

@@ -12,26 +12,18 @@ import {
   LOCKOUT_MS,
 } from "@/lib/auth";
 
-/** A short-lived server-side pending-login record for the 2FA step. */
-const PENDING_TTL_MS = 1000 * 60 * 5; // 5 minutes to finish 2FA
+const PENDING_TTL_MS = 1000 * 60 * 5; 
 const MAX_PENDING = 500;
 
-/** Unverified accounts are swept away this long after registration. */
-const UNVERIFIED_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
-const SWEEP_INTERVAL_MS = 1000 * 60 * 10; // sweep at most every 10 minutes
+const UNVERIFIED_TTL_MS = 1000 * 60 * 60 * 24; 
+const SWEEP_INTERVAL_MS = 1000 * 60 * 10; 
 
-// module-level stores survive warm invocations
 const globalForPending = globalThis as unknown as {
   quizrpgPendingLogins?: Map<string, { userId: string; expires: number }>;
   quizrpgLastSweep?: number;
 };
 const pendingLogins = (globalForPending.quizrpgPendingLogins ??= new Map());
 
-/**
- * Lazy janitor: deletes unverified accounts older than 24h. Runs at most once
- * per SWEEP_INTERVAL_MS, piggybacking on login traffic - no cron needed and
- * nothing is stored. Never blocks the request that triggered it.
- */
 async function sweepUnverifiedAccounts() {
   const now = Date.now();
   if (now - (globalForPending.quizrpgLastSweep ?? 0) < SWEEP_INTERVAL_MS) return;
@@ -63,7 +55,7 @@ export async function POST(req: Request) {
     const pendingToken = String(body.pendingToken ?? "");
     const totpCode = String(body.totpCode ?? "");
 
-    /* ---------- step 2: finish a pending admin login with the TOTP code ---------- */
+    
     if (pendingToken) {
       const pending = pendingLogins.get(pendingToken);
       if (!pending || pending.expires < Date.now()) {
@@ -87,17 +79,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ user: normalizeUser(user) });
     }
 
-    /* ---------- step 1: username + password ---------- */
+    
     const user = await User.findOne({ username }).lean();
 
     if (!user || !verifyPassword(password, user.passwordHash)) {
-      // Only count failures against real accounts (avoids locking a nonexistent
-      // username, but also does not reveal which usernames exist any faster).
+      
+      
       if (user) {
         const failures = (user.loginFailures ?? 0) + 1;
-        // escalating cooldown: each lockout lasts longer than the previous one
+        
         const count = (user.lockoutCount ?? 0) + 1;
-        const multiplier = Math.min(2 ** Math.max(0, count - 1), 16); // 1x, 2x, 4x, 8x... capped at 16x
+        const multiplier = Math.min(2 ** Math.max(0, count - 1), 16); 
         const duration = LOCKOUT_MS * multiplier;
         const lockout = failures >= MAX_LOGIN_ATTEMPTS ? Date.now() + duration : null;
         await User.updateOne(
@@ -144,12 +136,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2FA is required for admins and super admins - normal users sign straight in
+    
     if ((user.role === "ADMIN" || user.role === "SUPER_ADMIN") && user.twoFactorEnabled) {
       const doc = await User.findById(user._id);
       if (doc?.twoFactorSecret) {
-        // hand out a single-use pending token instead of trusting the client
-        // to re-send the password in step 2
+        
+        
         const token = crypto.randomBytes(24).toString("hex");
         if (pendingLogins.size > MAX_PENDING) pendingLogins.clear();
         pendingLogins.set(token, { userId: user._id.toString(), expires: Date.now() + PENDING_TTL_MS });

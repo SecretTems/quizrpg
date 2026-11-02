@@ -27,24 +27,21 @@ import type { BattleStateDTO, AnswerResultDTO } from "@/lib/types";
 interface BattleScreenProps {
   battle: BattleStateDTO;
   playerName: string;
-  /** the player's custom profile picture (data URL); empty falls back to 🧙 */
+  
   playerAvatar?: string;
   onBattleEnd: (result: AnswerResultDTO | null) => void;
 }
 
 const QUESTION_TIME = 30;
 
-/**
- * Per-question deadlines survive component unmounts - switching tabs during a
- * battle and coming back must NOT hand the player a fresh 30 seconds. Keyed by
- * `battleId:questionNumber:questionId`; cleared when a battle ends.
- */
+
+
 const TIMER_DEADLINES = new Map<string, number>();
 
 function deadlineFor(key: string): number {
   const existing = TIMER_DEADLINES.get(key);
   if (existing !== undefined) return existing;
-  if (TIMER_DEADLINES.size > 400) TIMER_DEADLINES.clear(); // safety valve
+  if (TIMER_DEADLINES.size > 400) TIMER_DEADLINES.clear(); 
   const deadline = Date.now() + QUESTION_TIME * 1000;
   TIMER_DEADLINES.set(key, deadline);
   return deadline;
@@ -63,7 +60,7 @@ interface Floaty {
   kind: "damage" | "crit" | "miss";
 }
 
-/** Countdown clock that resumes from the stored deadline when remounted. */
+
 function QuestionTimer({
   timerKey,
   active,
@@ -73,7 +70,7 @@ function QuestionTimer({
   timerKey: string;
   active: boolean;
   onTimeout: () => void;
-  /** epoch ms deadline persisted on the battle doc (survives tab/window switches) */
+  
   storedDeadline?: number;
 }) {
   const [timeLeft, setTimeLeft] = useState(() => {
@@ -125,9 +122,9 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
   const [battle, setBattle] = useState<BattleStateDTO>(initialBattle);
   const [selected, setSelected] = useState<number | null>(null);
   const [revealed, setRevealed] = useState<AnswerResultDTO | null>(null);
-  /** ref mirror of the current display order, used by submitAnswer */
+  
   const displayOrderRef = useRef<number[]>([]);
-  /** display position of the correct answer for the currently revealed question */
+  
   const [correctDisplayIndex, setCorrectDisplayIndex] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
   const [floaties, setFloaties] = useState<Floaty[]>([]);
@@ -135,24 +132,22 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
   const floatyId = useRef(0);
   const busyRef = useRef(false);
   const { toast } = useToast();
-  /** local loadout mirror - emptied as items are used */
+  
   const [loadout, setLoadout] = useState<(string | null)[]>(() => {
     const raw = (initialBattle.loadout ?? []).slice(0, 3);
-    // always render exactly three slots
+    
     return [...raw, null, null, null].slice(0, 3) as (string | null)[];
   });
   const [usingSlot, setUsingSlot] = useState<number | null>(null);
-  /** extra seconds added by consumables (Focus Elixir), keyed by the question they apply to */
+  
   const [deadlineBonus, setDeadlineBonus] = useState<{ questionId: string; ms: number } | null>(null);
-  /**
-   * The active deadline always comes from the current battle question - never a
-   * stale copy of the first one. A consumable bonus adds on top only while the
-   * question it was bought for is still up.
-   */
+  
+
+
   const deadline =
     (battle.questionDeadlineAt ?? Date.now()) +
     (deadlineBonus && deadlineBonus.questionId === battle.question?.id ? deadlineBonus.ms : 0);
-  /** the timer remounts per question, so a new one always starts from a fresh deadline */
+  
   const timerKey = `${battle.id}:${battle.questionNumber}:${battle.question?.id ?? "none"}`;
 
   const q = battle.question;
@@ -179,9 +174,9 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
       pushFloaty("MISS", "player", "miss");
     }
     setRevealed(result);
-    // the server reports the correct answer by its DATABASE index, but the UI
-    // shuffles options — map it to the shuffled display position so the green
-    // highlight lands on the right answer the player actually sees
+    
+    
+    
     setCorrectDisplayIndex(
       result.correctIndex >= 0 ? (displayOrderRef.current.indexOf(result.correctIndex)) : -1,
     );
@@ -207,7 +202,7 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
         : {}),
     }));
 
-    /* auto-advance after reveal */
+    
     setTimeout(() => {
       setRevealed(null);
       setSelected(null);
@@ -230,7 +225,7 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
     if (displayIndex >= 0 && phase === "reveal") return;
     busyRef.current = true;
     setPending(true);
-    // map the shuffled display position back to the question's original index
+    
     const originalIndex = displayIndex >= 0 ? (displayOrderRef.current[displayIndex] ?? displayIndex) : -1;
     if (displayIndex >= 0) setSelected(displayIndex);
     try {
@@ -289,14 +284,14 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
     try {
       await api(`/api/battle/${battle.id}/flee`, { method: "POST" });
     } catch {
-      /* battle may already be over - still leave the screen */
+      
     }
     busyRef.current = false;
     clearDeadlinesFor(battle.id);
     onBattleEnd(null);
   }
 
-  /* shuffle the answer positions per question encounter (stable while this question is up) */
+  
   const displayOrder = useMemo(() => {
     const options = battle.question?.options ?? [];
     return cryptoShuffle(options.map((_, i) => i));
@@ -321,7 +316,7 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
-      {/* top bar: flee + streak + score */}
+      {}
       <div className="flex items-center justify-between gap-3">
         <AlertDialog>
           <AlertDialogTrigger asChild>
@@ -361,7 +356,7 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
         </div>
       </div>
 
-      {/* enemy zone */}
+      {}
       <motion.div animate={shake === "enemy" ? { x: [0, -8, 7, -4, 2, 0] } : { x: 0 }} transition={{ duration: 0.45 }}>
         <Card className="panel-frame relative overflow-hidden">
           <CardContent className="flex items-center gap-4 p-4 sm:p-5">
@@ -406,7 +401,7 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
         </Card>
       </motion.div>
 
-      {/* question card */}
+      {}
       <Card className="panel-frame relative">
         <CardContent className="space-y-4 p-4 sm:p-6">
           <div className="flex items-center justify-between gap-2">
@@ -433,7 +428,7 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
             />
           </div>
 
-          {/* battle loadout - consumables brought from the backpack */}
+          {}
           {loadout.some(Boolean) && (
             <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Battle items">
               <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Items</span>
@@ -456,7 +451,7 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
                     )}
                   >
                     {usingSlot === i ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span aria-hidden="true">🧪</span>}
-                    <span className="max-w-24 truncate">{def ? def.name : "—"}</span>
+                    <span className="max-w-24 truncate">{def ? def.name : "-"}</span>
                   </motion.button>
                 );
               })}
@@ -509,7 +504,7 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
             })}
           </div>
 
-          {/* explanation strip */}
+          {}
           <AnimatePresence>
             {revealed && revealed.explanation && (
               <motion.div
@@ -538,7 +533,7 @@ export function BattleScreen({ battle: initialBattle, playerName, playerAvatar, 
         </CardContent>
       </Card>
 
-      {/* player zone */}
+      {}
       <motion.div animate={shake === "player" ? { x: [0, -8, 7, -4, 2, 0] } : { x: 0 }} transition={{ duration: 0.45 }}>
         <Card className="panel-frame">
           <CardContent className="flex items-center gap-4 p-4 sm:p-5">

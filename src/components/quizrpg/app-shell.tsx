@@ -34,9 +34,9 @@ export function AppShell() {
   const [tab, setTab] = useState<Tab>("arena");
   const [tutorialOpen, setTutorialOpen] = useState(false);
 
-  // Warn admins/super admins who signed in WITHOUT 2FA configured - the login
-  // step skips the code prompt for them, which is a real security gap until
-  // they enable it in Profile.
+  
+  
+  
   useEffect(() => {
     const onTwoFaWarning = (e: Event) => {
       const name = (e as CustomEvent<string>).detail;
@@ -51,8 +51,8 @@ export function AppShell() {
     return () => window.removeEventListener("quizrpg:2fa-warning", onTwoFaWarning);
   }, [toast]);
 
-  // Auto-show the tutorial once for brand-new players, then never again.
-  // (must run before the early return so the hook order stays stable)
+  
+  
   useEffect(() => {
     if (user && !user.tutorialSeen) {
       void Promise.resolve().then(() => setTutorialOpen(true));
@@ -80,7 +80,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      {/* header */}
+      {}
       <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
           <button className="flex items-center gap-2" onClick={() => setTab("arena")} aria-label="Go to arena">
@@ -88,7 +88,7 @@ export function AppShell() {
             <span className="font-display text-sm text-primary">QUIZRPG</span>
           </button>
 
-          {/* desktop nav */}
+          {}
           <nav className="ml-4 hidden gap-1 sm:flex" aria-label="Main navigation">
             {tabs.map((t) => (
               <button
@@ -106,7 +106,7 @@ export function AppShell() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            {/* avatar - click to open profile */}
+            {}
             <button
               className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted/50 text-base"
               onClick={() => setTab("profile")}
@@ -143,7 +143,7 @@ export function AppShell() {
           </div>
         </div>
 
-        {/* mobile nav */}
+        {}
         <nav className="border-t border-border sm:hidden" aria-label="Mobile navigation">
           <div className="mx-auto grid max-w-5xl grid-cols-5">
             {tabs.map((t) => (
@@ -164,7 +164,7 @@ export function AppShell() {
         </nav>
       </header>
 
-      {/* content */}
+      {}
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
         {tab === "arena" && <ArenaView onStatsChanged={handleStatsChanged} />}
         {tab === "bank" && <QuestionBankView />}
@@ -174,7 +174,7 @@ export function AppShell() {
         {tab === "about" && <AboutView />}
       </main>
 
-      {/* footer sticks to bottom */}
+      {}
       <footer className="mt-auto border-t border-border">
         <div className="mx-auto max-w-5xl px-4 py-3 text-center text-xs text-muted-foreground">
           QUIZRPG - An Interactive Gaming Quiz System for Enhancing Student Learning and Engagement

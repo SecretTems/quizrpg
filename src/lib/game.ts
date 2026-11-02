@@ -1,7 +1,6 @@
-/**
- * QUIZRPG game engine - enemy tiers, combat math, XP curve, question drawing.
- * Shared by API routes (server-authoritative) and UI (display only).
- */
+
+
+
 
 import crypto from "node:crypto";
 
@@ -11,7 +10,7 @@ export interface EnemyTier {
   tier: number;
   name: string;
   sprite: string;
-  /** opponent category, e.g. "Grade 8", "Grade 9", "Subject Champion" */
+  
   category: string;
   maxHp: number;
   atkMin: number;
@@ -133,7 +132,7 @@ export function getTier(tier: number): EnemyTier {
   return ENEMY_TIERS.find((t) => t.tier === tier) ?? ENEMY_TIERS[0];
 }
 
-/* ---------- combat math ---------- */
+
 
 export const PLAYER_BASE_HP = 90;
 
@@ -158,18 +157,18 @@ const DIFFICULTY_XP: Record<Difficulty, number> = {
 };
 
 export function streakBonus(streak: number): number {
-  // streak counts the just-answered question; consecutive answers 2..6 give +3..+15
+  
   return Math.max(0, Math.min(streak - 1, 5)) * 3;
 }
 
-/* ---------- Adventure: equipment & wallet ---------- */
+
 
 export interface EquipmentStats {
   atkBonus: number;
   defBonus: number;
 }
 
-/** Sum of atk/def across the three equipped pieces. */
+
 export function equipmentStats(equipment: {
   WEAPON: { atk: number; def: number } | null;
   ARMOR: { atk: number; def: number } | null;
@@ -187,25 +186,25 @@ export function equipmentStats(equipment: {
   return stats;
 }
 
-/** Gold reward for beating an official Adventure enemy - scales with tier & wave. */
+
 export function goldReward(tier: number, wave = 1): number {
   return Math.round((25 + tier * 15) * Math.sqrt(wave));
 }
 
-/** Gem chance & amount - official enemies only, rare drop. */
+
 export function gemReward(tier: number, wave = 1): number {
   const chance = Math.min(0.1 + tier * 0.02, 0.35) * Math.min(wave, 4);
   return cryptoRandom() < chance ? 1 + cryptoInt(Math.ceil(tier / 3)) : 0;
 }
 
-/* ---------- crypto-grade randomness ---------- */
 
-/** True uniform random float in [0,1) from the CSPRNG - replaces Math.random everywhere. */
+
+
 export function cryptoRandom(): number {
   return crypto.randomBytes(4).readUInt32BE(0) / 0x1_0000_0000;
 }
 
-/** Uniform random integer in [0, maxExclusive) using rejection sampling (no modulo bias). */
+
 export function cryptoInt(maxExclusive: number): number {
   if (maxExclusive <= 0) return 0;
   const limit = Math.floor(0x1_0000_0000 / maxExclusive) * maxExclusive;
@@ -216,12 +215,12 @@ export function cryptoInt(maxExclusive: number): number {
   return x % maxExclusive;
 }
 
-/** Uniform random integer in [min, max] inclusive. */
+
 export function cryptoIntInclusive(min: number, max: number): number {
   return min + cryptoInt(max - min + 1);
 }
 
-/** Fisher-Yates shuffle backed by the CSPRNG - used for answer ordering & draws. */
+
 export function cryptoShuffle<T>(arr: T[]): T[] {
   const out = [...arr];
   for (let i = out.length - 1; i > 0; i--) {
@@ -231,18 +230,16 @@ export function cryptoShuffle<T>(arr: T[]): T[] {
   return out;
 }
 
-/** STARTER_GEAR ids defined in src/lib/adventure-data.ts */
+
 export const STARTER_GEAR = ["w-wood-sword", "a-wood-armor"];
 
 export interface AnswerOutcomeWithGear extends AnswerOutcome {
-  /** damage blocked by armor on a counterattack */
+  
   blocked: number;
 }
 
-/**
- * Adventure variant of computeAnswer: armor absorbs part of the enemy's
- * counterattack (def % of incoming damage, capped at 70%).
- */
+
+
 export function computeAdventureAnswer(
   difficulty: Difficulty,
   wasCorrect: boolean,
@@ -267,7 +264,7 @@ export interface AnswerOutcome {
   crit: boolean;
 }
 
-/** Compute the outcome of answering `question` with streak BEFORE this answer. */
+
 export function computeAnswer(
   difficulty: Difficulty,
   wasCorrect: boolean,
@@ -302,9 +299,9 @@ export function computeAnswer(
   };
 }
 
-/* ---------- leveling ---------- */
 
-/** XP required to advance FROM level n to n+1 - a steep, grindy curve. */
+
+
 export function xpToNextLevel(level: number): number {
   return 200 + (level - 1) * 200;
 }
@@ -333,21 +330,18 @@ export function tiersUnlocked(level: number): EnemyTier[] {
   return ENEMY_TIERS.filter((t) => t.unlockLevel <= level);
 }
 
-/* ---------- battle composition ---------- */
 
-/** Standard battle modes are pinned to a difficulty; INFINITE escalates wave by wave. */
+
+
 export type BattleModeId = Difficulty | "INFINITE";
 
-/**
- * Progressive battle modes. Each standard mode draws ONLY its own difficulty
- * and has a fixed question count with a scaling victory reward. INFINITE is
- * endless: waves get progressively harder until the player falls.
- */
+
+
 export interface BattleMode {
   id: BattleModeId;
   label: string;
   description: string;
-  /** questions per wave (INFINITE draws this many each wave, endlessly) */
+  
   questionCount: number;
   rewardXp: number;
   rewardScore: number;
@@ -357,12 +351,8 @@ export interface BattleMode {
 
 export const INFINITE_WAVE_SIZE = 5;
 
-/**
- * Difficulty ladder for INFINITE mode. Each wave uses one difficulty band:
- * wave 1-2 EASY, 3-4 MEDIUM, 5-6 HARD, 7-8 EXPERT, 9+ MASTER.
- * Within a band the questions are that difficulty, so the mode "progressively
- * gets harder" the longer you survive.
- */
+
+
 export function infiniteDifficulty(wave: number): Difficulty {
   if (wave <= 2) return "EASY";
   if (wave <= 4) return "MEDIUM";
@@ -371,7 +361,7 @@ export function infiniteDifficulty(wave: number): Difficulty {
   return "MASTER";
 }
 
-/** Per-wave clear bonus for INFINITE mode (scales with wave number). */
+
 export function infiniteWaveBonus(wave: number): { xp: number; score: number } {
   return { xp: 20 + wave * 10, score: 40 + wave * 25 };
 }
@@ -446,10 +436,8 @@ export function modesUnlocked(level: number): BattleMode[] {
   return BATTLE_MODES.filter((m) => m.unlockLevel <= level);
 }
 
-/**
- * Question difficulty for a battle. Standard modes pin one difficulty; the
- * INFINITE mode escalates based on the current wave number.
- */
+
+
 export function pickDifficulty(mode: BattleModeId, wave = 1): Difficulty {
   if (mode === "INFINITE") return infiniteDifficulty(wave);
   return mode;

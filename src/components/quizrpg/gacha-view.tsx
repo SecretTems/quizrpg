@@ -25,7 +25,7 @@ const CAT_LABEL: Record<string, string> = {
 };
 
 export function GachaView({ open, onOpenChange, user, onRefresh }: GachaViewProps) {
-  const [focus, setFocus] = useState<string | null>(null); // null = random (default)
+  const [focus, setFocus] = useState<string | null>(null); 
   const [pulling, setPulling] = useState(false);
   const [pullResult, setPullResult] = useState<{
     rarity: string;
@@ -82,7 +82,7 @@ export function GachaView({ open, onOpenChange, user, onRefresh }: GachaViewProp
 
         <div className="font-bold">💎 Gems: {gems}</div>
 
-        {/* category focus picker - Random selected by default */}
+        {}
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"

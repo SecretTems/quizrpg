@@ -25,7 +25,7 @@ import { StatBar } from "@/components/quizrpg/bits";
 import { levelProgress } from "@/lib/game";
 import type { SafeUser } from "@/lib/types";
 
-/* ---------- 2FA setup card (admins / super admins) ---------- */
+
 
 function TwoFactorCard() {
   const user = useAuth((s) => s.user);
@@ -151,7 +151,7 @@ export function ProfileView({ onStatsChanged }: { onStatsChanged: () => void }) 
   const [deleting, setDeleting] = useState(false);
   const avatarFileRef = useRef<HTMLInputElement>(null);
 
-  // draft name while editing; falls back to the stored display name otherwise
+  
   const name = editing ? (nameDraft ?? user?.displayName ?? "") : (user?.displayName ?? "");
   const setName = setNameDraft;
 
@@ -237,7 +237,7 @@ export function ProfileView({ onStatsChanged }: { onStatsChanged: () => void }) 
     <div className="mx-auto max-w-2xl space-y-4">
       <h2 className="font-display text-lg">🧙 Hero Profile</h2>
 
-      {/* identity card */}
+      {}
       <Card className="panel-frame">
         <CardContent className="flex flex-wrap items-center gap-4 p-5">
           <div className="relative h-20 w-20 shrink-0">
@@ -316,7 +316,7 @@ export function ProfileView({ onStatsChanged }: { onStatsChanged: () => void }) 
         </CardContent>
       </Card>
 
-      {/* stats */}
+      {}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Battle Record</CardTitle>
@@ -385,10 +385,10 @@ export function ProfileView({ onStatsChanged }: { onStatsChanged: () => void }) 
         </CardContent>
       </Card>
 
-      {/* two-factor authentication (admins) */}
+      {}
       <TwoFactorCard />
 
-      {/* danger zone */}
+      {}
       <Card>
         <CardContent className="space-y-3 p-4">
           <div className="flex flex-wrap items-center gap-3">

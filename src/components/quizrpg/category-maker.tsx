@@ -36,7 +36,7 @@ import type { NormalizedCategory } from "@/lib/models";
 interface CategoryMakerProps {
   categories: NormalizedCategory[];
   onReload: () => void;
-  /** jump into the Monster Maker for this category */
+  
   onManageMonsters: (categoryId: string) => void;
 }
 
@@ -63,7 +63,7 @@ export function CategoryMaker({ categories, onReload, onManageMonsters }: Catego
   const [allSubjects, setAllSubjects] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // subjects the player can pick from (official + their own)
+  
   useEffect(() => {
     api<{ subjects: string[] }>("/api/subjects")
       .then((d) => setAllSubjects(d.subjects))

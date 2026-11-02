@@ -77,11 +77,11 @@ export function QuestionBankView() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
-  /* maker switcher + category/monster question filters */
+  
   const [maker, setMaker] = useState<Maker>("questions");
   const [categories, setCategories] = useState<NormalizedCategory[]>([]);
   const [filterCategoryId, setFilterCategoryId] = useState("ALL");
-  /** category the question dialog targets - its subject list drives the subject picker */
+  
   const [formCategoryId, setFormCategoryId] = useState("ALL");
   const [monsterMakerCatId, setMonsterMakerCatId] = useState<string | null>(null);
 
@@ -116,13 +116,13 @@ export function QuestionBankView() {
     }
   }, [query]);
 
-  /** Refresh just the category list (used by the makers after a mutation). */
+  
   const reloadCategories = useCallback(async () => {
     try {
       const c = await api<{ categories: NormalizedCategory[] }>("/api/categories");
       setCategories(c.categories);
     } catch {
-      /* the maker already toasted the error */
+      
     }
   }, []);
 
@@ -141,7 +141,7 @@ export function QuestionBankView() {
   function openCreate() {
     setEditing(null);
     setForm(EMPTY_FORM);
-    // seed the form's subjects from the category currently being browsed
+    
     const seedCat = categories.find((c) => c.id === filterCategoryId);
     setFormCategoryId(filterCategoryId);
     if (seedCat?.subjects.length) {
@@ -163,7 +163,7 @@ export function QuestionBankView() {
       explanation: q.explanation,
       timerSeconds: q.timerSeconds ?? 30,
     });
-    // editing keeps every subject reachable - don't clamp to one category
+    
     setFormCategoryId("ALL");
     setDialogOpen(true);
   }
@@ -242,7 +242,7 @@ export function QuestionBankView() {
   const canEdit = (q: QuestionDTO) => isStaff || q.ownerId === user?.id;
   const canModerate = (q: QuestionDTO) => isStaff && q.status === "PENDING";
 
-  /* category filter applies on top of the server-side query */
+  
   const selectedFilterCat = categories.find((c) => c.id === filterCategoryId) ?? null;
   const visibleQuestions = questions.filter((q) => {
     if (selectedFilterCat && !selectedFilterCat.subjects.includes(q.subject)) return false;
@@ -272,7 +272,7 @@ export function QuestionBankView() {
         </div>
       </div>
 
-      {/* maker switcher */}
+      {}
       <div className="grid gap-3 sm:grid-cols-3">
         {MAKERS.map((m) => (
           <button
@@ -320,7 +320,7 @@ export function QuestionBankView() {
         )}
       </div>
 
-      {/* filters */}
+      {}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-2 p-3">
           <div className="flex rounded-lg border border-border p-0.5">
@@ -388,7 +388,7 @@ export function QuestionBankView() {
         </CardContent>
       </Card>
 
-      {/* list */}
+      {}
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -513,7 +513,7 @@ export function QuestionBankView() {
         </div>
       )}
 
-      {/* create / edit dialog */}
+      {}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
@@ -532,8 +532,8 @@ export function QuestionBankView() {
                 value={formCategoryId}
                 onValueChange={(v) => {
                   setFormCategoryId(v);
-                  // switching category snaps the subject picks to its list,
-                  // the same way the Monster Maker works
+                  
+                  
                   const cat = categories.find((c) => c.id === v);
                   if (cat?.subjects.length) setForm((f) => ({ ...f, subjects: [...cat.subjects] }));
                 }}

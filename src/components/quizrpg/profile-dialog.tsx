@@ -20,7 +20,6 @@ interface ProfileData {
   createdAt: string;
 }
 
-/** Public profile dialog, opened by tapping a player on the leaderboard. */
 export function ProfileDialog({ userId, onClose }: { userId: string | null; onClose: () => void }) {
   return (
     <Dialog
@@ -36,9 +35,8 @@ export function ProfileDialog({ userId, onClose }: { userId: string | null; onCl
   );
 }
 
-/** Loaded per-open; `key` remounts it for each new userId so the fetch runs once. */
 function ProfileBody({ userId }: { userId: string }) {
-  // fetch once per mount (mount happens exactly once per picked player)
+  
   const [state, setState] = useState<
     | { kind: "loading" }
     | { kind: "loaded"; profile: ProfileData }
@@ -46,8 +44,8 @@ function ProfileBody({ userId }: { userId: string }) {
   >({ kind: "loading" });
 
   if (state.kind === "loading") {
-    // promise chain settles into setState; safe because the component is keyed
-    // per userId and remounts fresh for each new player
+    
+    
     void api<{ profile: ProfileData }>(`/api/profile/${userId}`)
       .then((d) => setState({ kind: "loaded", profile: d.profile }))
       .catch((err) =>

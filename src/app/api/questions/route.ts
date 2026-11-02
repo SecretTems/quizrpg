@@ -6,12 +6,12 @@ import { getSessionUser } from "@/lib/auth";
 const VALID_DIFFICULTIES = ["EASY", "MEDIUM", "HARD", "EXPERT", "MASTER"];
 export const isStaff = (role: string) => role === "ADMIN" || role === "SUPER_ADMIN";
 
-/** Escape user search input before using it as a RegExp. */
+
 export function escapeRegex(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Ids of users that still exist - used to filter ghost pending submissions. */
+
 export async function liveOwnerIds(): Promise<string[]> {
   const docs = await User.find({}, { _id: 1 }).lean();
   return docs.map((d) => d._id.toString());
@@ -51,13 +51,8 @@ export function validateQuestionInput(body: Record<string, unknown>) {
   return { subject, subjects, difficulty, text, options, correctIndex, explanation, timerSeconds } as const;
 }
 
-/**
- * GET questions.
- * scope=official → the approved global bank (view-only for everyone).
- * scope=mine     → the caller's own custom questions (any role).
- * scope=pending  → staff only: submitted questions awaiting approval.
- * scope=review   → staff only: everything non-official (pending + rejected + custom of others).
- */
+
+
 export async function GET(req: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
@@ -75,7 +70,7 @@ export async function GET(req: Request) {
   else if (scope === "pending") {
     if (!isStaff(user.role)) return NextResponse.json({ error: "Admin access required." }, { status: 403 });
     filter.status = "PENDING";
-    // never list pending submissions whose owner was deleted (ghost entries)
+    
     filter.ownerId = { $in: await liveOwnerIds() };
   } else if (scope === "review") {
     if (!isStaff(user.role)) return NextResponse.json({ error: "Admin access required." }, { status: 403 });
@@ -83,7 +78,7 @@ export async function GET(req: Request) {
   } else {
     filter.ownerId = user.id;
   }
-  if (subject) filter.subjects = subject; // matches docs whose subjects array contains it
+  if (subject) filter.subjects = subject; 
   if (difficulty && VALID_DIFFICULTIES.includes(difficulty)) filter.difficulty = difficulty;
   if (search) filter.text = { $regex: escapeRegex(search), $options: "i" };
 
@@ -95,13 +90,8 @@ export async function GET(req: Request) {
   return NextResponse.json({ questions });
 }
 
-/**
- * POST a question.
- * Staff: creates OFFICIAL bank content directly (no approval) - or a personal
- * custom question if `personal: true`.
- * Players: creates their own CUSTOM question, or submits it for approval
- * (`submitForReview: true`) so an admin can make it OFFICIAL.
- */
+
+
 export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });

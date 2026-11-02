@@ -1,10 +1,8 @@
-// seed2.mjs - creates ONLY the demo accounts (superadmin / admin / hero),
-// with emails + verified flags per the new signup rules. Skips seeding questions.
-// Run with: npm run seed2   (or: node --env-file=.env scripts/seed2.mjs)
+
+
 import mongoose from "mongoose";
 import crypto from "crypto";
 
-/* ---------- password hashing (matches src/lib/auth.ts) ---------- */
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = crypto.scryptSync(password, salt, 64).toString("hex");
@@ -27,7 +25,7 @@ async function seed() {
   for (const a of ACCOUNTS) {
     const existing = await users.findOne({ username: a.username });
     if (existing) {
-      // Repair: ensure email fields + role + password are up to date even if the doc predates the email requirement
+      
       await users.updateOne(
         { _id: existing._id },
         {

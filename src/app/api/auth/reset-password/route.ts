@@ -24,8 +24,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No account with that email." }, { status: 404 });
     }
 
-    // Preferred path: the ticket minted by /api/auth/verify-otp once the OTP was
-    // checked. Single use - it is cleared below.
+    
+    
     let authorized = false;
     if (resetToken && user.resetToken) {
       if (user.resetTokenExpires && Date.now() > user.resetTokenExpires) {
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       }
       authorized = user.resetToken === resetToken;
     } else if (code) {
-      // Fallback for callers that skip the verify step: validate the OTP directly
+      
       if (!user.otpCode || !user.otpExpires) {
         return NextResponse.json({ error: "No OTP code pending. Request a new one." }, { status: 400 });
       }

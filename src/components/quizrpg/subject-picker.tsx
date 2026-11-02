@@ -5,10 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-/**
- * Subject picker: tap an available subject to add it, tap the X on a selected
- * chip to remove it. Replaces the old comma-separated free-text input.
- */
 export function SubjectPicker({
   available,
   selected,
@@ -37,7 +33,7 @@ export function SubjectPicker({
 
   return (
     <div className="space-y-2">
-      {/* selected subjects as removable chips */}
+      {}
       <div className="flex flex-wrap gap-1.5">
         {selected.length === 0 && (
           <p className="text-xs text-muted-foreground">No subjects selected yet.</p>
@@ -60,7 +56,7 @@ export function SubjectPicker({
         ))}
       </div>
 
-      {/* available subjects as tap-to-add buttons */}
+      {}
       {notSelected.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {notSelected.map((s) => (
@@ -79,7 +75,7 @@ export function SubjectPicker({
         </div>
       )}
 
-      {/* custom subject entry */}
+      {}
       <div className="flex gap-1.5">
         <Input
           id="custom-subject-input"

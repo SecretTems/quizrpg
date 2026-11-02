@@ -36,7 +36,7 @@ import type { IMonster, NormalizedCategory } from "@/lib/models";
 
 interface MonsterMakerProps {
   categories: NormalizedCategory[];
-  /** preselect a category (e.g. when jumped here from the Category Maker) */
+  
   initialCategoryId?: string | null;
   onReload: () => void;
 }
@@ -72,7 +72,7 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
 
   const [selectedId, setSelectedId] = useState<string | null>(initialCategoryId ?? null);
 
-  // derive the selection so it never goes stale while the list loads or changes
+  
   const catId =
     selectedId && editable.some((c) => c.id === selectedId)
       ? selectedId
@@ -91,8 +91,8 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
   const [modsOpen, setModsOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Monsters may only draw from the subjects their category defines — the
-  // category's list is the single source of truth.
+  
+  
   const pickerSubjects = [...(cat?.subjects ?? [])];
 
   async function persist(next: IMonster[]) {
@@ -130,7 +130,7 @@ export function MonsterMaker({ categories, initialCategoryId, onReload }: Monste
       hp: String(m.hp),
       atkMin: String(m.atkMin),
       atkMax: String(m.atkMax),
-      // drop any subject that is no longer part of the category
+      
       subjects: m.subjects.filter((s) => allowed.has(s)),
       modifiers: (m.modifiers ?? []).map((mod) => ({ ...mod })),
     });

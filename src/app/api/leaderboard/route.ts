@@ -5,14 +5,8 @@ import { getSessionUser } from "@/lib/auth";
 import { levelFromXp } from "@/lib/game";
 import type { LeaderboardEntry } from "@/lib/types";
 
-/**
- * A leaderboard scope. Rankings go overall → category → subject, and subject is
- * the deepest level. Every scope carries the same three metrics (score, XP and
- * accuracy) so the UI can switch between them at any depth.
- */
 type Scope = { type: "overall" } | { type: "category"; id: string } | { type: "subject"; name: string };
 
-/** Per-scope tallies for one player: score, xp and right/wrong answer counts. */
 interface ScopedStats {
   bestScore: number;
   xp: number;
@@ -25,14 +19,6 @@ function emptyStats(): ScopedStats {
   return { bestScore: 0, xp: 0, right: 0, wrong: 0, answered: 0 };
 }
 
-/**
- * Folds the per-player scoped numbers into one `ScopedStats`.
- *
- * Overall uses the lifetime counters. Category and subject boards use the
- * per-scope accuracy ledgers; because those ledgers do not store score/XP per
- * scope, score and XP fall back to the player's lifetime values (marked in the
- * UI as "overall" numbers) while accuracy is strictly scoped.
- */
 function statsFor(
   u: ReturnType<typeof normalizeUser>,
   scope: Scope,
@@ -72,7 +58,7 @@ function sortBy(list: Ranked[], metric: Metric): Ranked[] {
   return [...list].sort((a, b) => {
     if (metric === "score") return b.s.bestScore - a.s.bestScore;
     if (metric === "xp") return b.s.xp - a.s.xp;
-    // accuracy: highest % first, then the player with more correct answers
+    
     return (b.acc ?? -1) - (a.acc ?? -1) || b.s.right - a.s.right;
   });
 }
@@ -99,12 +85,11 @@ function toEntry(r: Ranked, rank: number, metric: Metric): LeaderboardEntry {
 const PLAYER_FILTER = { role: "PLAYER", emailVerified: true } as const;
 const BOARD_SIZE = 15;
 
-/** One scope, all three metrics. */
 function boardsFor(scope: Scope, players: ReturnType<typeof normalizeUser>[]) {
   const ranked = players
     .map((u) => ({ u, s: statsFor(u, scope), acc: null as number | null }))
     .map((r) => ({ ...r, acc: accuracyOf(r.s) }))
-    // a player with no answers in this scope is not a competitor here
+    
     .filter((r) => r.s.answered > 0);
   const board = (metric: Metric) =>
     sortBy(ranked, metric).slice(0, BOARD_SIZE).map((r, i) => toEntry(r, i + 1, metric));
@@ -117,15 +102,15 @@ export async function GET() {
 
   await connectDB();
   const [playerDocs, officialCategories, totalPlayers] = await Promise.all([
-    // (super)admins are staff, not competitors, and unverified accounts are
-    // not yet real players - neither appears on any board
+    
+    
     User.find(PLAYER_FILTER)
       .select(
         "username displayName avatar xp bestScore battlesWon bestStreak questionsRight questionsWrong subjectStats categoryStats",
       )
       .limit(500)
       .lean(),
-    // the leaderboard adapts itself to whatever official categories exist
+    
     Category.find({ status: "OFFICIAL" }).select("name subjects").lean(),
     User.countDocuments(PLAYER_FILTER),
   ]);

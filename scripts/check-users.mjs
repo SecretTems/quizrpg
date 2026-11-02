@@ -1,4 +1,4 @@
-// Verify the demo accounts have the email fields set.
+
 import mongoose from "mongoose";
 await mongoose.connect(process.env.MONGODB_URI);
 const docs = await mongoose.connection

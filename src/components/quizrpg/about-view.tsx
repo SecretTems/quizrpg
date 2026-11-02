@@ -56,7 +56,7 @@ const SECURITY: { icon: React.ReactNode; title: string; text: string }[] = [
   {
     icon: <Users className="h-4 w-4" />,
     title: "Server-authoritative play",
-    text: "Every hit, reward and item action is validated on the server — the browser only ever sends intent, never outcomes.",
+    text: "Every hit, reward and item action is validated on the server - the browser only ever sends intent, never outcomes.",
   },
 ];
 
@@ -117,7 +117,7 @@ export function AboutView() {
         transition={{ delay: 0.2 }}
         className="text-center text-xs text-muted-foreground"
       >
-        Built as a capstone project — study hard, fight harder. ⚔️
+        Built as a capstone project - study hard, fight harder. ⚔️
       </motion.p>
     </div>
   );

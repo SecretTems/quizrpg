@@ -65,7 +65,7 @@ export function AdminView() {
   const [categories, setCategories] = useState<NormalizedCategory[]>([]);
   const [catLoading, setCatLoading] = useState(false);
 
-  // moderation dialog: edit a player's display name / strip their avatar
+  
   const [editTarget, setEditTarget] = useState<AdminUser | null>(null);
   const [editName, setEditName] = useState("");
   const [editBusy, setEditBusy] = useState(false);
@@ -153,8 +153,8 @@ export function AdminView() {
   async function toggleRole(u: AdminUser) {
     setBusyId(u.id);
     try {
-      // cycle: PLAYER -> ADMIN -> SUPER_ADMIN -> PLAYER (server rejects demoting a super admin,
-      // but keeps a "you"-style guard for the current viewer; SUPER_ADMIN row is skipped below)
+      
+      
       const next = u.role === "PLAYER" ? "ADMIN" : "PLAYER";
       await api(`/api/admin/users/${u.id}`, { method: "PATCH", body: JSON.stringify({ role: next }) });
       toast({ title: `@${u.username} is now ${next === "ADMIN" ? "an admin 🛡️" : "a player ⚔️"}` });
@@ -244,7 +244,7 @@ export function AdminView() {
         ))}
       </div>
 
-      {/* category approvals - creation lives in the Bank's Category Maker */}
+      {}
       <Card>
         <CardHeader>
           <CardTitle>Category approvals</CardTitle>
@@ -296,7 +296,7 @@ export function AdminView() {
         </CardContent>
       </Card>
 
-      {/* section tabs + search */}
+      {}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-2 p-3">
           <div className="flex rounded-lg border border-border p-0.5">
@@ -446,7 +446,7 @@ export function AdminView() {
           : "Admins manage questions, approvals and profile moderation. Promoting/demoting and deleting accounts is reserved for super admins (👑)."}
       </p>
 
-      {/* moderation dialog: edit display name / remove inappropriate profile picture */}
+      {}
       <Dialog open={Boolean(editTarget)} onOpenChange={(open) => { if (!open) setEditTarget(null); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>

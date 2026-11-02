@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   await connectDB();
 
   if (action === "setLoadout") {
-    // 3 consumable slots; each holds ONE item (duplicates allowed, stack untouched)
+    
     const requested = Array.isArray(body.loadout) ? body.loadout : [];
     if (requested.length > 3) {
       return NextResponse.json({ error: "Loadout can hold at most 3 items." }, { status: 400 });
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       if (!backpack[id]) {
         return NextResponse.json({ error: `You don't own "${def.name}".` }, { status: 400 });
       }
-      // a slot holds ONE unit - the loadout can never reserve more than the stack
+      
       const count = (needed.get(id) ?? 0) + 1;
       if (count > (backpack[id]?.qty ?? 0)) {
         return NextResponse.json(
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
   }
 
   if (action === "discard") {
-    // drop one unit of the item from the backpack (stackables lose one, gear is removed)
+    
     const updated = await User.findOneAndUpdate(
       { _id: user.id, [`backpack.${itemId}`]: { $exists: true } },
       { $inc: { [`backpack.${itemId}.qty`]: -1 } },
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
     if (!updated) {
       return NextResponse.json({ error: "That item is not in your backpack." }, { status: 404 });
     }
-    // remove the entry entirely once the stack is spent
+    
     const remaining = (updated.backpack as Record<string, { qty: number } | undefined>)[itemId]?.qty ?? 0;
     if (remaining <= 0) {
       await User.updateOne({ _id: user.id }, { $unset: { [`backpack.${itemId}`]: "" } });

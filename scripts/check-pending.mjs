@@ -1,4 +1,4 @@
-// Inspect all PENDING questions and categories to find ghost submissions.
+
 import mongoose from "mongoose";
 await mongoose.connect(process.env.MONGODB_URI);
 const q = await mongoose.connection

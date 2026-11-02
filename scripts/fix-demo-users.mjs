@@ -1,5 +1,5 @@
-// One-off repair: give the seeded demo accounts the email fields required after the
-// email-update migration, and reset their passwords. Safe to re-run.
+
+
 import mongoose from "mongoose";
 import crypto from "crypto";
 

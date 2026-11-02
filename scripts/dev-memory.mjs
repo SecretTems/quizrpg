@@ -1,14 +1,5 @@
-/**
- * QUIZRPG — zero-config dev launcher with a temporary in-memory MongoDB.
- *
- *   npm run dev:memory
- *
- * Boots a local in-memory MongoDB, seeds demo data, then starts the Next.js
- * dev server on port 3000. Perfect for trying the game without installing
- * MongoDB. NOTE: data is EPHEMERAL — it disappears when you stop the server.
- * For real persistence, install MongoDB or use Atlas (see README) and run
- * `npm run dev` + `npm run seed` instead.
- */
+
+
 import { spawn } from "node:child_process";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { seed } from "./seed.mjs";

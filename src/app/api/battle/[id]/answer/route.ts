@@ -30,9 +30,9 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   const body = await req.json();
-  const choiceIndex = Number(body.choiceIndex); // -1 = timeout
+  const choiceIndex = Number(body.choiceIndex); 
 
-  const ids = battleDoc.questions; // string[] of question ids
+  const ids = battleDoc.questions; 
   const currentId = ids[battleDoc.cursor];
   const qDoc = currentId ? await Question.findById(currentId).lean() : null;
   if (!qDoc) {
@@ -40,23 +40,23 @@ export async function POST(req: Request, { params }: Params) {
   }
   const question = normalizeQuestion(qDoc);
 
-  // category opponents snapshot their own attack range on the battle - use it
-  // instead of the static tier roster's stats
+  
+  
   const baseTier = getTier(battleDoc.tier);
   const tier: EnemyTier =
     battleDoc.enemyAtkMin != null && battleDoc.enemyAtkMax != null
       ? { ...baseTier, atkMin: battleDoc.enemyAtkMin, atkMax: battleDoc.enemyAtkMax }
       : baseTier;
-  // category battles carry a monster lineup - track where we are in it
+  
   const monsters: BattleMonster[] = (battleDoc.monsters ?? []) as BattleMonster[];
   const currentMonsterIndex = battleDoc.monsterIndex ?? 0;
   let nextMonsterIndex: number | null = null;
   const wasCorrect = choiceIndex === question.correctIndex;
-  /** answered-so-far accuracy (right + this answer / total + 1) reported with battle results */
+  
 
-  // user-made (custom/pending) questions are practice-only in classic battles —
-  // BUT in a player-created category fight, the category owner's own custom
-  // questions are the intended content and deal full damage.
+  
+  
+  
   const ownerIds = battleDoc.categoryId
     ? await (async () => {
         const cat = await Category.findById(battleDoc.categoryId).select("ownerId").lean();
@@ -78,7 +78,7 @@ export async function POST(req: Request, { params }: Params) {
       }
     : computeAnswer(question.difficulty as Difficulty, wasCorrect, battleDoc.streak, tier);
 
-  // --- consumable effects queued by /api/battle/[id]/item ---
+  
   let damage = outcome.damageDealt;
   let taken = outcome.damageTaken;
   let usedBoost = false;
@@ -89,18 +89,18 @@ export async function POST(req: Request, { params }: Params) {
     usedBoost = true;
   }
   if (!wasCorrect && battleDoc.stunPending) {
-    // the enemy is stunned - it cannot hit back this question
+    
     taken = 0;
     usedStun = true;
   }
   if (!wasCorrect && battleDoc.confusionPending) {
-    // the enemy hits itself instead of the player
+    
     damage += Math.max(1, Math.round(tier.atkMin));
     taken = 0;
     usedConfusion = true;
   }
 
-  // --- apply combat result ---
+  
   let enemyHp = Math.max(0, battleDoc.enemyHp - damage);
   const playerHp = Math.max(0, battleDoc.playerHp - taken);
   const streak = outcome.streak;
@@ -110,8 +110,8 @@ export async function POST(req: Request, { params }: Params) {
 
   const xpBefore = levelProgress(user.xp).level;
 
-  // XP accrues immediately so progress persists even mid-battle.
-  // Custom (user-made) questions are practice-only outside custom-category battles.
+  
+  
   if (!isCustom) {
     await User.updateOne({ _id: user.id }, { $inc: { xp: outcome.xpGained } });
     if (streak > user.bestStreak) {
@@ -119,7 +119,7 @@ export async function POST(req: Request, { params }: Params) {
     }
   }
 
-  // --- accuracy ledger: overall, per-subject and per-category tallies ---
+  
   {
     const inc: Record<string, number> = {
       [wasCorrect ? "questionsRight" : "questionsWrong"]: 1,
@@ -142,8 +142,8 @@ export async function POST(req: Request, { params }: Params) {
   const mode = getMode(battleDoc.mode as BattleModeId);
 
   if (mode.infinite) {
-     // INFINITE: no single victory - each cleared wave pays a bonus, enemy HP
-    // partially refills, and the next wave is harder
+     
+    
     const isWaveEnd = battleDoc.cursor + 1 >= ids.length;
     if (isWaveEnd && enemyHp > 0 && playerHp > 0) {
       waveCleared = true;
@@ -157,7 +157,7 @@ export async function POST(req: Request, { params }: Params) {
 
   } else if (enemyHp <= 0) {
     if (monsters.length > 0 && currentMonsterIndex < monsters.length - 1) {
-      // this monster fell - the next one in the category's lineup steps in
+      
       const nextIndex = currentMonsterIndex + 1;
       nextMonsterIndex = nextIndex;
       enemyHp = monsters[nextIndex].hp;
@@ -165,10 +165,10 @@ export async function POST(req: Request, { params }: Params) {
       status = "WON";
       victoryBonus = { xp: mode.rewardXp, score: mode.rewardScore + bestStreak * 10 };
       if (!isCustom) {
-        // Official enemies drop gold; harder enemies drop more and have a higher
-        // chance to drop a gem for the gacha.
+        
+        
         goldDrop = cryptoIntInclusive(8 + tier.tier * 6, 18 + tier.tier * 6);
-        // Midas Potion / Lucky Clover bonuses bought during this adventure
+        
         if (battleDoc.goldBonus > 0) goldDrop = Math.round(goldDrop * (1 + battleDoc.goldBonus));
         const gemChance = Math.min(0.05 + tier.tier * 0.03 + (battleDoc.gemBonus ?? 0), 0.95);
         if (cryptoRandom() < gemChance) gemDrop = 1;
@@ -197,7 +197,7 @@ export async function POST(req: Request, { params }: Params) {
     );
   }
 
-  // --- swap in the next monster of the lineup, if this one just fell ---
+  
   const nextMonster = nextMonsterIndex !== null ? monsters[nextMonsterIndex] : null;
   if (nextMonster && nextMonsterIndex !== null) {
     battleDoc.set({
@@ -213,14 +213,14 @@ export async function POST(req: Request, { params }: Params) {
     });
   }
 
-  // --- monster modifiers on the current monster ---
+  
   const currentMonster = monsters[currentMonsterIndex];
   if (currentMonster?.modifiers?.length) {
     for (const mod of currentMonster.modifiers) {
       if (cryptoRandom() * 100 >= mod.chance) continue;
       switch (mod.id) {
         case "RESTING":
-          // the monster heals if the player got the question wrong
+          
           if (!wasCorrect && mod.amount > 0 && enemyHp > 0) {
             enemyHp = Math.min(battleDoc.enemyMaxHp, enemyHp + mod.amount);
           }
@@ -230,14 +230,14 @@ export async function POST(req: Request, { params }: Params) {
             await User.updateOne({ _id: user.id }, { $inc: { gold: -mod.amount } });
           }
           break;
-        // SHUFFLER / RESTRAINT / DISABLER are client-side; consumed in battle-screen
+        
         default:
           break;
       }
     }
   }
 
-  // --- advance to next question / next wave ---
+  
   let cursor = battleDoc.cursor;
   let allIds = [...ids];
   let nextQuestion: BattleStateDTO["question"] = null;
@@ -245,9 +245,9 @@ export async function POST(req: Request, { params }: Params) {
   if (status === "ONGOING") {
     cursor += 1;
     if (nextMonster) {
-      // questions pre-drawn for the fallen monster are swapped for the new
-      // monster's own subject pool (falls back to the old remaining questions
-      // when its pool has nothing available)
+      
+      
+      
       const fresh = await drawWave(
         nextMonster.subjects.length > 0
           ? nextMonster.subjects
@@ -264,11 +264,11 @@ export async function POST(req: Request, { params }: Params) {
       }
     }
     if (cursor >= allIds.length) {
-      // wave exhausted - INFINITE mode pulls a fresh, harder wave from the pool;
-      // standard modes end the battle unless the pool had leftover questions
+      
+      
       const nextWave = battleDoc.wave + 1;
       const wave = await drawWave(
-        // category battles keep drawing from the category's own subjects
+        
         battleDoc.battleSubjects && battleDoc.battleSubjects.length > 0
           ? battleDoc.battleSubjects
           : battleDoc.subject,
@@ -283,7 +283,7 @@ export async function POST(req: Request, { params }: Params) {
         allIds = [...allIds, ...wave.map((q) => q.id)];
         battleDoc.set("wave", nextWave);
         if (mode.infinite) {
-          // fresh enemy for the next wave: partial HP refill so the fight continues
+          
           const refill = Math.ceil(battleDoc.enemyMaxHp * 0.35);
           battleDoc.set("enemyHp", refill);
         }
@@ -317,7 +317,7 @@ export async function POST(req: Request, { params }: Params) {
   await battleDoc.save();
   const updatedBattle = normalizeBattle(battleDoc.toObject());
 
-  // --- durability: weapon wears on landed hits, armor on hits taken ---
+  
   const durability = await applyBattleWear(
     User,
     user.id,
@@ -328,7 +328,7 @@ export async function POST(req: Request, { params }: Params) {
     console.log(`[durability] weapon broke for user ${user.id}`);
   }
 
-  // --- level-up detection ---
+  
   const afterUser = await User.findById(user.id).lean();
   const xpAfter = levelProgress(afterUser ? afterUser.xp : 0).level;
   const leveledUp = xpAfter > xpBefore;

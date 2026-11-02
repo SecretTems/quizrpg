@@ -35,7 +35,7 @@ export async function PUT(req: Request, { params }: Params) {
 
   const staff = isStaff(user.role);
   const ownerId = existing.ownerId ? String(existing.ownerId) : null;
-  // official categories belong to the staff; everything else to its creator
+  
   if (!staff && ownerId !== user.id) {
     return NextResponse.json({ error: "You can only edit your own categories." }, { status: 403 });
   }
@@ -54,9 +54,9 @@ export async function PUT(req: Request, { params }: Params) {
 
   if ("monsters" in body) {
     const monsters = sanitizeMonsters(body.monsters);
-    // The CATEGORY's subject list is authoritative — monster subject picks are
-    // clamped to it, never the other way around (a monster cannot widen the
-    // category, and saving a lineup cannot rewrite the category's subjects).
+    
+    
+    
     const catSubjects = Array.isArray(update.subjects)
       ? (update.subjects as string[])
       : existing.subjects;
@@ -73,7 +73,7 @@ export async function PUT(req: Request, { params }: Params) {
     update.enemy = {
       name: String(e.name ?? existing.enemy.name).trim().slice(0, 40) || existing.enemy.name,
       emoji: String(e.emoji ?? existing.enemy.emoji).trim().slice(0, 8) || existing.enemy.emoji,
-      // only staff may change the loot-scaling tier
+      
       tier: staff ? Math.min(8, Math.max(1, Number(e.tier) || 1)) : Number(prev?.tier ?? 1),
       baseHp: Math.min(9999, Math.max(20, Number(e.baseHp) || existing.enemy.baseHp)),
       atkMin: Math.max(1, Number(e.atkMin) || existing.enemy.atkMin),
@@ -83,9 +83,9 @@ export async function PUT(req: Request, { params }: Params) {
 
   if (typeof body.status === "string") {
     if (body.status === "OFFICIAL" && !staff) {
-      // players cannot self-promote - ignore the status change
+      
     } else if (body.status === "OFFICIAL" && staff) {
-      // admins vote - a category needs APPROVAL_VOTES_REQUIRED approvals to become official
+      
       update.$addToSet = { approvalVotes: user.id };
       update.$pull = { rejectionVotes: user.id };
     } else if (body.status === "REJECTED" && staff) {
@@ -94,7 +94,7 @@ export async function PUT(req: Request, { params }: Params) {
     } else if (["CUSTOM", "PENDING", "REJECTED"].includes(body.status) && (staff || ownerId === user.id)) {
       update.status = body.status;
       if (staff) update.isOfficial = false;
-      // a resubmission resets previous votes
+      
       if (body.status === "PENDING") {
         update.approvalVotes = [];
         update.rejectionVotes = [];
@@ -106,7 +106,7 @@ export async function PUT(req: Request, { params }: Params) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }
 
-  // apply the vote bookkeeping first, then decide whether the votes crossed the threshold
+  
   const { $addToSet, $pull, ...rest } = update as Record<string, unknown> & {
     $addToSet?: Record<string, unknown>;
     $pull?: Record<string, unknown>;
@@ -122,9 +122,9 @@ export async function PUT(req: Request, { params }: Params) {
   ).lean();
   if (!updated) return NextResponse.json({ error: "Category not found." }, { status: 404 });
 
-  // "CUSTOM" is included so an admin can approve a category the creator never
-  // explicitly submitted (this is what made the old Approve button do nothing:
-  // votes were recorded, but only a PENDING category could ever be promoted).
+  
+  
+  
   if (
     (updated.status === "PENDING" || updated.status === "CUSTOM") &&
     updated.approvalVotes.length >= APPROVAL_VOTES_REQUIRED

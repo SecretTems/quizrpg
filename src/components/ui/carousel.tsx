@@ -95,8 +95,8 @@ function Carousel({
 
   React.useEffect(() => {
     if (!api) return
-    // initial snapshot is deferred to a microtask so the effect body does not
-    // call setState synchronously (react-hooks/set-state-in-effect)
+    
+    
     const t = setTimeout(() => onSelect(api), 0)
     api.on("reInit", onSelect)
     api.on("select", onSelect)

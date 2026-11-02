@@ -13,14 +13,9 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/store";
 
-const IDLE_LIMIT_MS = 15 * 60 * 1000; // log out after 15 minutes of inactivity
-const WARN_BEFORE_MS = 60 * 1000; // show the "still there?" modal 1 minute before
+const IDLE_LIMIT_MS = 15 * 60 * 1000; 
+const WARN_BEFORE_MS = 60 * 1000; 
 
-/**
- * Watches user activity (mouse, keys, scroll, touch) and logs the player out
- * after 15 idle minutes. One minute before the cutoff a modal appears with a
- * countdown; any activity (or clicking "Stay logged in") resets the timer.
- */
 export function IdleLogout() {
   const user = useAuth((s) => s.user);
   const logout = useAuth((s) => s.logout);
@@ -90,7 +85,7 @@ export function IdleLogout() {
       open={warnOpen}
       onOpenChange={(open) => {
         if (!open) {
-          // closing the modal counts as "stay logged in"
+          
           lastActivityRef.current = Date.now();
           warnedRef.current = false;
           setWarnOpen(false);

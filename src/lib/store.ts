@@ -34,7 +34,6 @@ export const useAuth = create<AuthState>((set) => ({
   },
 }));
 
-/** Small JSON fetch helper that throws Error(message) on non-OK responses. */
 export async function api<T = unknown>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     headers: { "Content-Type": "application/json" },
@@ -42,8 +41,8 @@ export async function api<T = unknown>(url: string, options?: RequestInit): Prom
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    // attach the response payload to the error so callers can read extra
-    // fields like `requires2FA`, `requiresEmailVerification` or `lockedUntil`
+    
+    
     const err = new Error(
       (data as { error?: string }).error || `Request failed (${res.status})`,
     ) as Error & Record<string, unknown>;

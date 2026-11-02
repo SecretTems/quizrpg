@@ -4,8 +4,6 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { Difficulty } from "@/lib/game";
 
-/* ---------- animated HP / XP bar ---------- */
-
 export function StatBar({
   value,
   max,
@@ -43,8 +41,6 @@ export function StatBar({
   );
 }
 
-/* ---------- difficulty badge ---------- */
-
 const DIFF_STYLES: Record<Difficulty, string> = {
   EASY: "bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border-emerald-600/40",
   MEDIUM: "bg-amber-600/15 text-amber-700 dark:text-amber-400 border-amber-600/40",
@@ -75,8 +71,6 @@ export function DifficultyBadge({ difficulty, className }: { difficulty: Difficu
   );
 }
 
-/* ---------- subject chip ---------- */
-
 const SUBJECT_ICONS: Record<string, string> = {
   Mathematics: "🔢",
   Science: "🔬",
@@ -93,8 +87,6 @@ export function subjectIcon(subject: string): string {
   return SUBJECT_ICONS[subject] ?? "📖";
 }
 
-/* ---------- small stat ---------- */
-
 export function StatChip({ icon, label, value }: { icon: string; label: string; value: string | number }) {
   return (
     <div className="flex flex-col items-center rounded-lg border border-border bg-muted/40 px-3 py-2">
@@ -104,8 +96,6 @@ export function StatChip({ icon, label, value }: { icon: string; label: string; 
     </div>
   );
 }
-
-/* ---------- question status badge ---------- */
 
 export function StatusBadge({ status }: { status: "OFFICIAL" | "CUSTOM" | "PENDING" | "REJECTED" }) {
   const map: Record<string, { label: string; cls: string }> = {

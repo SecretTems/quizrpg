@@ -7,7 +7,6 @@ import { levelProgress } from "@/lib/game";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** Public-safe profile snapshot (no email, wallet, or 2FA details). */
 export async function GET(_req: Request, { params }: Params) {
   const viewer = await getSessionUser();
   if (!viewer) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });

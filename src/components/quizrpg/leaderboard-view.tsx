@@ -14,7 +14,6 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 
 type Metric = "score" | "xp" | "accuracy";
 
-/** Every scope (overall / category / subject) carries the same three boards. */
 interface ScopeBoards {
   byScore: LeaderboardEntry[];
   byXp: LeaderboardEntry[];
@@ -37,7 +36,6 @@ interface LeaderboardData {
   totalPlayers: number;
 }
 
-/** Which level of the ladder is being viewed, plus the chosen category/subject. */
 type Level = "overall" | "category" | "subject";
 
 function AccuracyBadge({ accuracy }: { accuracy?: number | null }) {
@@ -165,7 +163,7 @@ export function LeaderboardView() {
   const [error, setError] = useState("");
   const [viewingId, setViewingId] = useState<string | null>(null);
 
-  /** overall → pick a category → pick a subject (the deepest level) */
+  
   const [level, setLevel] = useState<Level>("overall");
   const [categoryId, setCategoryId] = useState<string>("");
   const [subjectName, setSubjectName] = useState<string>("");
@@ -254,7 +252,7 @@ export function LeaderboardView() {
         </p>
       </div>
 
-      {/* level: overall / category / subject + search */}
+      {}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-2 p-3">
           <div className="flex rounded-lg border border-border p-0.5">
@@ -286,7 +284,7 @@ export function LeaderboardView() {
         </CardContent>
       </Card>
 
-      {/* category / subject picker */}
+      {}
       {level !== "overall" && (
         <div className="flex flex-wrap gap-1.5">
           {level === "category"
@@ -328,7 +326,7 @@ export function LeaderboardView() {
         </div>
       )}
 
-      {/* metric switcher - the same three at every level */}
+      {}
       <div className="flex rounded-lg border border-border p-0.5">
         {METRICS.map((m) => (
           <button

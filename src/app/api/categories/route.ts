@@ -11,9 +11,9 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
   await connectDB();
-  // staff review every submitted category (needed for approvals); players see the
-  // official bank plus their own private/pending creations. Other players'
-  // private (CUSTOM) categories stay hidden even from staff until submitted.
+  
+  
+  
   const categories = await Category.find(
     isStaff(user.role)
       ? { $or: [{ isOfficial: true }, { ownerId: user.id }, { status: { $in: ["PENDING", "REJECTED"] } }] }
@@ -47,13 +47,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "At least one subject is required." }, { status: 400 });
   }
 
-  // legacy single-enemy snapshot: derived from the first monster when present,
-  // kept so old API consumers (and old battle docs) still work
+  
+  
   const first = monsters[0];
   const rawEnemy = (body.enemy ?? {}) as Record<string, unknown>;
   const tierNum = staff
     ? Math.min(8, Math.max(1, Number(rawEnemy.tier) || 1))
-    : 1; // players always get tier-1 loot scaling until a category is approved
+    : 1; 
   const enemy = first
     ? {
         name: first.name,
@@ -83,8 +83,8 @@ export async function POST(req: Request) {
     monsters,
     isOfficial,
     ownerId: isOfficial ? null : user.id,
-    // player-created categories start private (visible only to their creator)
-    // until they are submitted and approved to become official
+    
+    
     status: isOfficial ? "OFFICIAL" : "CUSTOM",
   });
   return NextResponse.json({ category: normalizeCategory(created.toObject()) }, { status: 201 });

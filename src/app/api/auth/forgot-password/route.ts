@@ -15,14 +15,14 @@ export async function POST(req: Request) {
 
     const user = await User.findOne({ email }).lean();
     if (!user) {
-      // Don't reveal whether the email exists
+      
       return NextResponse.json({ ok: true, email });
     }
 
     const code = generateOtp();
     const expires = otpExpiresAt();
 
-    // a fresh code invalidates any reset ticket minted from an earlier one
+    
     await User.findByIdAndUpdate(user._id, {
       otpCode: code,
       otpExpires: expires,

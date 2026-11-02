@@ -3,8 +3,7 @@ import { connectDB } from "@/lib/db";
 import { User } from "@/lib/models";
 import { generateOtp, otpExpiresAt, sendOtpEmail } from "@/lib/auth";
 
-/** Simple per-email resend throttle - bots can't spam the mail pipeline. */
-const RESEND_COOLDOWN_MS = 60_000; // 1 minute between codes
+const RESEND_COOLDOWN_MS = 60_000; 
 const globalForThrottle = globalThis as unknown as { quizrpgOtpSentAt?: Map<string, number> };
 const otpSentAt = (globalForThrottle.quizrpgOtpSentAt ??= new Map());
 

@@ -4,10 +4,8 @@ const globalForMongoose = globalThis as unknown as {
   mongoosePromise?: Promise<typeof mongoose>;
 };
 
-/**
- * Lazily connect to MongoDB. The promise is cached on globalThis so
- * Next.js hot reloads reuse the same connection instead of leaking sockets.
- */
+
+
 export async function connectDB(): Promise<typeof mongoose> {
   if (!globalForMongoose.mongoosePromise) {
     const uri = process.env.MONGODB_URI;

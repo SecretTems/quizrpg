@@ -12,7 +12,7 @@ export async function GET() {
   return NextResponse.json({ user });
 }
 
-/** Update display name, avatar and/or tutorialSeen flag. */
+
 export async function PATCH(req: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
@@ -28,7 +28,7 @@ export async function PATCH(req: Request) {
   if (typeof body.avatar === "string") {
     const avatar = body.avatar.trim();
     if (avatar === "") {
-      update.avatar = ""; // explicit clear → back to the default emoji
+      update.avatar = ""; 
     } else if (!IMAGE_RE.test(avatar) || avatar.length > MAX_IMAGE_CHARS) {
       return NextResponse.json(
         { error: "Avatar image is invalid or too large - upload it through /api/upload." },
@@ -50,7 +50,7 @@ export async function PATCH(req: Request) {
   return NextResponse.json({ user: normalizeUser(updated) });
 }
 
-/** Permanently delete the caller's account and everything they own. */
+
 export async function DELETE() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });

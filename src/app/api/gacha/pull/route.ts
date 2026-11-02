@@ -34,7 +34,7 @@ function rollItem(rarity: string, focus: GachaCategory | null, owned: Record<str
     const matching = pool.filter((i) => i.slot === focus);
     const others = pool.filter((i) => i.slot !== focus);
     if (matching.length > 0) {
-      // focused items are more likely, but others can still appear
+      
       const matchWeight = matching.length * GACHA_FOCUS_WEIGHT_BONUS;
       const otherWeight = others.length;
       const total = matchWeight + otherWeight;
@@ -42,7 +42,7 @@ function rollItem(rarity: string, focus: GachaCategory | null, owned: Record<str
     }
   }
 
-  // filter out items that hit their copy cap already
+  
   const eligible = pool.filter((i) => (owned[i.id]?.qty ?? 0) < (GACHA_MAX_COPIES[i.rarity] ?? 999));
   if (eligible.length === 0) return undefined;
   return eligible[cryptoInt(eligible.length)];
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     const cur = backpack[item.id] ?? { qty: 0 };
     const max = GACHA_MAX_COPIES[item.rarity] ?? 999;
     if (cur.qty + 1 > max) {
-      // over the copy cap - the extra copy is destroyed (gems still spent)
+      
       destroyed = true;
     } else {
       backpack[item.id] = { qty: cur.qty + 1, piece: item };

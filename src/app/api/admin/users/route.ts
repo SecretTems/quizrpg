@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   await connectDB();
   const url = new URL(req.url);
   const search = (url.searchParams.get("search") ?? "").trim();
-  const section = url.searchParams.get("section") ?? "all"; // players | admins | all
+  const section = url.searchParams.get("section") ?? "all"; 
 
   const roleFilter: Record<string, unknown> =
     section === "players"
@@ -36,7 +36,7 @@ export async function GET(req: Request) {
   const docs = await User.find(userFilter).sort({ createdAt: 1 }).lean();
   const users = docs.map(normalizeUser);
 
-  // count questions per owner (ownerId stored as user id string)
+  
   const qCounts = await Question.aggregate<{ _id: string | null; count: number }>([
     { $match: { ownerId: { $ne: null } } },
     { $group: { _id: "$ownerId", count: { $sum: 1 } } },

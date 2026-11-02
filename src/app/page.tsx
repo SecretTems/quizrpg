@@ -18,7 +18,7 @@ export default function Home() {
       try {
         await refresh();
       } catch {
-        /* session check is best-effort */
+        
       }
     })();
     void cancelled;

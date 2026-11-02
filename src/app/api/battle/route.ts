@@ -13,7 +13,7 @@ import { drawWave, toBattleState, toBattleQuestion } from "@/lib/battle";
 import { applyAccessoryWear } from "@/lib/durability";
 import type { BattleModeId } from "@/lib/game";
 
-/** Resume: return the player's ongoing battle, if any. */
+
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
@@ -32,7 +32,7 @@ export async function GET() {
   return NextResponse.json({ battle: toBattleState({ ...battle, loadout: user.loadout }, current) });
 }
 
-/** Start a new battle. */
+
 export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unknown battle mode." }, { status: 400 });
   }
 
-  // --- resolve the opponent: an Adventure category monster or the static roster ---
+  
   let category: NormalizedCategory | null = null;
   if (categoryId !== null) {
     if (!Types.ObjectId.isValid(categoryId)) {
@@ -72,8 +72,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Category not found." }, { status: 404 });
     }
     category = normalizeCategory(catDoc);
-    // everyone may fight official categories; creators may also fight their own
-     // private (CUSTOM) or pending ones - never anyone else's unapproved content
+    
+     
     const playable =
       category.status === "OFFICIAL" || category.ownerId === user.id;
     if (!playable) {
@@ -84,13 +84,13 @@ export async function POST(req: Request) {
     }
   }
 
-  // --- build the enemy lineup: a category's monster team, fought in order ---
+  
   const categoryMonsters: BattleMonster[] = category
     ? category.monsters && category.monsters.length > 0
       ? category.monsters
       : [
           {
-            // legacy categories have no lineup - fall back to their single enemy
+            
             name: category.enemy.name,
             emoji: category.enemy.emoji,
             hp: category.enemy.baseHp,
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
         ]
     : [];
   const firstMonster = categoryMonsters[0];
-  // the first monster decides which questions open the fight
+  
   const categorySubjects =
     firstMonster && firstMonster.subjects.length > 0
       ? firstMonster.subjects
@@ -129,8 +129,8 @@ export async function POST(req: Request) {
     );
   }
 
-  // category battles draw from the first monster's own subject list, and for
-  // player-created categories the creator's custom questions join the pool
+  
+  
   const questions = await drawWave(
     category ? categorySubjects : subject,
     user.id,
@@ -149,7 +149,7 @@ export async function POST(req: Request) {
 
   const enemyMaxHp = category ? firstMonster.hp : tier.maxHp;
 
-  // --- durability: accessories wear per adventure, scaled by difficulty ---
+  
   await applyAccessoryWear(User, user.id, battleMode.id);
 
   const created = await Battle.create({

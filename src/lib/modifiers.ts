@@ -1,8 +1,4 @@
-/**
- * Modifier system - epic and legendary equipment get battle modifiers, and
- * monsters can carry question modifiers with tunable chance values.
- * Pure data + pure helpers; battle logic reads these at runtime.
- */
+
 
 import { cryptoRandom } from "@/lib/game";
 
@@ -17,9 +13,9 @@ export interface EquipmentModifier {
   id: EquipmentModifierId;
   label: string;
   description: string;
-  /** numeric value, meaning depends on the id */
+  
   value: number;
-  /** unit for display */
+  
   unit: "seconds" | "percent" | "hp";
 }
 
@@ -68,9 +64,9 @@ export interface MonsterModifier {
   label: string;
   emoji: string;
   description: string;
-  /** default trigger chance, percent (the maker can tune this) */
+  
   defaultChance: number;
-  /** extra tunable amount (gold lost per 5s, heal amount, etc.) */
+  
   amount: number;
 }
 
@@ -120,14 +116,12 @@ export const MONSTER_MODIFIERS: Record<MonsterModifierId, MonsterModifier> = {
 export const ALL_MONSTER_MODIFIERS = Object.values(MONSTER_MODIFIERS);
 export const ALL_EQUIPMENT_MODIFIERS = Object.values(EQUIPMENT_MODIFIERS);
 
-/** Deterministic default modifiers by rarity (applied at grant time). */
 export function defaultEquipmentModifiers(rarity: string): EquipmentModifierId[] {
   if (rarity === "LEGENDARY") return ["EXTRA_TIME", "HEAL_ON_CORRECT"];
   if (rarity === "EPIC") return ["HINT_CHANCE"];
   return [];
 }
 
-/** Roll whether a chance-percent event happens. */
 export function chanceHit(percent: number): boolean {
   return cryptoRandom() * 100 < percent;
 }

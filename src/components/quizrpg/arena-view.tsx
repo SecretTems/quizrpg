@@ -37,16 +37,16 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   const { toast } = useToast();
 
   const [subjects, setSubjects] = useState<string[]>([]);
-  void subjects; void setSubjects; // kept for the battle-start payload shape; subject grid now comes from the category
+  void subjects; void setSubjects; 
   const [subject, setSubject] = useState<string>("ALL");
   const [tier, setTier] = useState<number>(1);
   const [mode, setMode] = useState<BattleModeId>("EASY");
   const [categories, setCategories] = useState<NormalizedCategory[]>([]);
-  /** search text for the category picker in the Play modal */
+  
   const [categorySearch, setCategorySearch] = useState("");
-  /** Play modal category filter: official vs player-made */
+  
   const [categoryFilter, setCategoryFilter] = useState<"OFFICIAL" | "CUSTOM">("OFFICIAL");
-  /** selected DB Adventure category opponent - overrides the static tier roster */
+  
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleStateDTO | null>(null);
   const [resumable, setResumable] = useState<BattleStateDTO | null>(null);
@@ -55,7 +55,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   const [showResult, setShowResult] = useState(false);
   const [lastMeta, setLastMeta] = useState<{ subject: string; tier: number; mode: BattleModeId; categoryId: string | null; enemyName: string } | null>(null);
 
-  /* Play modal + side feature dialogs */
+  
   const [showPlayModal, setShowPlayModal] = useState(false);
   const [showEquipment, setShowEquipment] = useState(false);
   const [showShop, setShowShop] = useState(false);
@@ -65,7 +65,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
 
   const level = user ? levelProgress(user.xp).level : 1;
 
-  /** categories shown in the Play modal after the Official/Custom filter + search */
+  
   const visibleCategories = categories.filter((c) => {
     if (categoryFilter === "OFFICIAL" && c.status !== "OFFICIAL") return false;
     if (categoryFilter === "CUSTOM" && c.status === "OFFICIAL") return false;
@@ -78,22 +78,20 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
       (c.monsters ?? []).some((m) => m.name.toLowerCase().includes(q))
     );
   });
-  /** first category (or the selected one) starts expanded */
+  
   const openCategoryKey = categoryId ?? visibleCategories[0]?.id ?? "";
-  /** the currently picked category object (drives the "subjects in this category" panel) */
+  
   const selectedCategory = categories.find((c) => c.id === categoryId) ?? null;
 
-  /**
-   * Re-fetch the full profile snapshot (gold/gems/backpack/equipment) that the
-   * Shop, Gacha and Equipment dialogs render - the auth store copy doesn't
-   * carry those fields, so the dialogs need this after every wallet change.
-   */
+  
+
+
   const refreshProfile = useCallback(async () => {
     try {
       const p = await api<{ user: NormalizedUser }>("/api/auth/me");
       setProfile(p.user);
     } catch {
-      /* keep the previous snapshot */
+      
     }
     void refreshUser();
   }, [refreshUser]);
@@ -112,7 +110,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
         setSubjects(d.subjects);
         setResumable(b.battle);
         setProfile(p.user);
-        // GET already scopes: official categories + your own (private/pending) ones
+        
         setCategories(c.categories);
       } catch {
         if (!cancelled) {
@@ -141,7 +139,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
       } catch (err) {
         const message = err instanceof Error ? err.message : "Could not start battle.";
         if (message.toLowerCase().includes("ongoing")) {
-          // resume instead
+          
           try {
             const d = await api<{ battle: BattleStateDTO | null }>("/api/battle");
             if (d.battle) {
@@ -151,7 +149,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
               setLastMeta({ subject: d.battle.subject, tier: d.battle.tier, mode: d.battle.mode, categoryId: d.battle.categoryId, enemyName: d.battle.enemyName });
               return;
             }
-          } catch { /* fall through */ }
+          } catch {  }
         }
         toast({ title: "Cannot start battle", description: message, variant: "destructive" });
       } finally {
@@ -185,7 +183,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
   }
   void handleFleeEnd;
 
-  /* ---------- in-battle ---------- */
+  
   if (battle && user) {
     return (
       <BattleScreen
@@ -199,7 +197,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
 
   const lp = levelProgress(user?.xp ?? 0);
 
-  /* ---------- setup ---------- */
+  
   return (
     <div className="space-y-6">
       {resumable && (
@@ -239,14 +237,14 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
         </p>
       </div>
 
-      {/* step 1 - subject */}
+      {}
       <Dialog open={showPlayModal} onOpenChange={setShowPlayModal}>
         <DialogContent className="max-h-[90vh] overflow-hidden p-4 sm:max-w-2xl">
           <DialogHeader className="pb-1">
             <DialogTitle className="font-display text-xl">Categories</DialogTitle>
           </DialogHeader>
 
-          {/* top bar: Official / Custom filter + category search */}
+          {}
           <div className="flex flex-wrap items-center gap-2">
             {(
               [
@@ -275,7 +273,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
             </div>
           </div>
 
-          {/* scrollable category list with expandable monster lineups */}
+          {}
           <div className="max-h-[38vh] min-h-[180px] space-y-1 overflow-y-auto rounded-xl border border-border/60 bg-muted/10 p-2">
             {visibleCategories.length === 0 ? (
               <p className="px-2 py-6 text-center text-xs text-muted-foreground">
@@ -361,7 +359,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
             )}
           </div>
 
-          {/* bottom panel: category subjects | separator | difficulty selector */}
+          {}
           <div className="flex flex-col gap-3 border-t border-border/60 pt-3 sm:flex-row">
             <div className="min-w-0 flex-1">
               <h4 className="mb-1.5 text-sm font-bold">Subjects in this category</h4>
@@ -388,8 +386,8 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
             <div className="w-full sm:w-64">
               <h4 className="mb-1.5 text-sm font-bold">Difficulty</h4>
               {(() => {
-                // browse all STANDARD difficulties (Infinite Mode lives on the
-                // footer button, not here); locked ones show their unlock level
+                
+                
                 const modes = BATTLE_MODES.filter((m) => !m.infinite);
                 const idx = Math.max(0, modes.findIndex((m) => m.id === mode));
                 const current = modes[idx] ?? modes[0] ?? BATTLE_MODES[0];
@@ -475,9 +473,9 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
         </DialogContent>
       </Dialog>
 
-      {/* main action buttons - 2 columns */}
+      {}
       <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2">
-        {/* left column - battles */}
+        {}
         <div className="flex flex-col gap-3">
           <Button
             className="h-auto w-full items-start gap-4 px-5 py-5 text-left shadow-lg"
@@ -525,7 +523,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
           </Button>
         </div>
 
-        {/* right column - progression */}
+        {}
         <div className="flex flex-col gap-3">
           <Button
             variant="outline"
@@ -594,7 +592,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
         {lp.current}/{lp.needed} XP into level {lp.level}
       </p>
 
-      {/* result dialog */}
+      {}
       <Dialog open={showResult} onOpenChange={setShowResult}>
         <DialogContent className="sm:max-w-md">
           {result && (
@@ -637,7 +635,7 @@ export function ArenaView({ onStatsChanged }: ArenaViewProps) {
                   <div className="flex items-center justify-between">
                     <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Accuracy rating</p>
                     <p className="text-lg font-bold tabular-nums">
-                      {result.accuracy != null ? `${result.accuracy}%` : "—"}
+                      {result.accuracy != null ? `${result.accuracy}%` : "-"}
                     </p>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2">

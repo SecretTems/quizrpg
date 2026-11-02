@@ -26,12 +26,12 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const body = await req.json();
 
-  // --- moderation actions (staff only) ---
+  
   const action = String(body.action ?? "");
   if (action === "approve" || action === "reject") {
     if (!staff) return NextResponse.json({ error: "Admin access required." }, { status: 403 });
     if (action === "reject") {
-      // a single rejection sends it back with the note
+      
       await Question.findByIdAndUpdate(id, {
         $set: {
           status: "REJECTED",
@@ -43,7 +43,7 @@ export async function PATCH(req: Request, { params }: Params) {
       return NextResponse.json({ ok: true, status: "REJECTED" });
     }
 
-    // approve = a vote; reaching APPROVAL_VOTES_REQUIRED votes makes it official
+    
     const updated = await Question.findByIdAndUpdate(
       id,
       {
@@ -60,8 +60,8 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ ok: true, status: "PENDING", votes: updated.approvalVotes.length, needed: APPROVAL_VOTES_REQUIRED });
   }
 
-  // --- content edit ---
-  // Official bank questions are staff-managed; players may only edit their own custom questions.
+  
+  
   if (question.status === "OFFICIAL" && !staff) {
     return NextResponse.json(
       { error: "Official questions can only be edited by admins." },
@@ -74,8 +74,8 @@ export async function PATCH(req: Request, { params }: Params) {
   const input = validateQuestionInput(body);
   if ("error" in input) return NextResponse.json({ error: input.error }, { status: 400 });
 
-  // Staff editing official content keeps it official. A player resubmitting a
-  // rejected question sends it back to the approval queue.
+  
+  
   const newStatus = staff
     ? question.status === "OFFICIAL"
       ? "OFFICIAL"
@@ -93,7 +93,7 @@ export async function PATCH(req: Request, { params }: Params) {
         ...input,
         status: newStatus,
         reviewNote: newStatus === "PENDING" ? "" : question.reviewNote,
-        // a fresh submission starts with no votes
+        
         ...(newStatus === "PENDING" ? { approvalVotes: [], rejectionVotes: [] } : {}),
       },
     },
@@ -120,7 +120,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   const isOwner = question.ownerId === user.id;
   const staff = isStaff(user.role);
 
-  // Official bank questions are staff-managed; players may only delete their own custom questions.
+  
   if (question.status === "OFFICIAL" && !staff) {
     return NextResponse.json(
       { error: "Official questions can only be deleted by admins." },

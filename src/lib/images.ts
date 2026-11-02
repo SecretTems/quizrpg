@@ -2,16 +2,14 @@
 
 import { api } from "@/lib/store";
 
-/** Encoded-size cap enforced by /api/upload (bytes). */
+
 export const MAX_UPLOAD_BYTES = 200_000;
 
-/** Largest edge, in pixels, that uploaded images are downscaled to. */
+
 export const MAX_IMAGE_DIM = 128;
 
-/**
- * Read a picked image file, downscale it to `maxDim` on a canvas, and return a
- * PNG data URL (falls back to JPEG when the PNG would exceed the size cap).
- */
+
+
 export function fileToDataUrl(file: File, maxDim = MAX_IMAGE_DIM): Promise<string> {
   if (!file.type.startsWith("image/")) {
     return Promise.reject(new Error("Please choose an image file."));
@@ -35,7 +33,7 @@ export function fileToDataUrl(file: File, maxDim = MAX_IMAGE_DIM): Promise<strin
         ctx.drawImage(img, 0, 0, w, h);
         let data = canvas.toDataURL("image/png");
         if (dataUrlBytes(data) > MAX_UPLOAD_BYTES) {
-          // photographs compress far better as JPEG - flatten onto white
+          
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, w, h);
           ctx.drawImage(img, 0, 0, w, h);
@@ -65,7 +63,7 @@ function dataUrlBytes(dataUrl: string): number {
   return Math.floor(((dataUrl.length - i - 1) * 3) / 4);
 }
 
-/** Resize + validate through the unified /api/upload route; returns the data URL to store. */
+
 export async function uploadImage(
   file: File,
   kind: "avatar" | "category" | "monster",

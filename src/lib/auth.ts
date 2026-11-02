@@ -7,24 +7,24 @@ import { User, normalizeUser, type NormalizedUser } from "@/lib/models";
 
 const SECRET = process.env.SESSION_SECRET || "quizrpg-dev-secret";
 const COOKIE_NAME = "quizrpg_session";
-const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14; // 14 days
-const OTP_TTL_MS = 1000 * 60 * 10; // 10 minutes
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14; 
+const OTP_TTL_MS = 1000 * 60 * 10; 
 
-/* ---------- login rate limiting (account lockout) ---------- */
+
 
 export const MAX_LOGIN_ATTEMPTS = 5;
-export const LOCKOUT_MS = 1000 * 60 * 15; // 15-minute cooldown after 5 failures
+export const LOCKOUT_MS = 1000 * 60 * 15; 
 
-/** Failed login count since last success. */
+
 export function loginFailures(user: { loginFailures?: number; lastLoginFailureAt?: number | null }): number {
   return user.loginFailures ?? 0;
 }
 
-/** Epoch ms until which the account is locked, or 0 when not locked. */
+
 export function lockoutUntil(user: { loginFailures?: number; lockoutUntil?: number | null }): number {
   const fails = loginFailures(user);
   const until = user.lockoutUntil ?? 0;
-  // the lockout is only valid while the failing streak is unbroken
+  
   return fails >= MAX_LOGIN_ATTEMPTS && until > Date.now() ? until : 0;
 }
 
@@ -32,7 +32,7 @@ export function isLockedOut(user: { loginFailures?: number; lockoutUntil?: numbe
   return lockoutUntil(user) > 0;
 }
 
-/* ---------- password hashing (scrypt) ---------- */
+
 
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -48,17 +48,14 @@ export function verifyPassword(password: string, stored: string): boolean {
   return candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected);
 }
 
-/* ---------- session token (HMAC-signed, stateless) ---------- */
+
 
 function sign(payload: string): string {
   return crypto.createHmac("sha256", SECRET).update(payload).digest("hex");
 }
 
-/**
- * A session id is minted per login. It is embedded in the token AND stored on
- * the user doc - only the MOST RECENT login for an account stays valid, so two
- * people (or two tabs/devices) can never use the same account at once.
- */
+
+
 function createSessionId(): string {
   return crypto.randomBytes(24).toString("hex");
 }
@@ -82,18 +79,18 @@ function parseToken(token: string): { userId: string; sessionId: string } | null
   return { userId, sessionId };
 }
 
-/* ---------- cookie helpers (for route handlers) ---------- */
+
 
 export async function setSessionCookie(userId: string) {
   const store = await cookies();
-  // each login invalidates every previous session for this account
+  
   const sessionId = createSessionId();
   await connectDB();
   await User.updateOne({ _id: userId }, { $set: { sessionId } });
   store.set(COOKIE_NAME, createToken(userId, sessionId), {
     httpOnly: true,
     sameSite: "lax",
-    // sent only over HTTPS in production; relaxed in dev so plain http://localhost works
+    
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_TTL_MS / 1000,
@@ -111,7 +108,7 @@ export async function clearSessionCookie() {
   });
 }
 
-/** Returns the authenticated user (sans password) or null. */
+
 export async function getSessionUser(): Promise<NormalizedUser | null> {
   const store = await cookies();
   const token = store.get(COOKIE_NAME)?.value;
@@ -121,22 +118,22 @@ export async function getSessionUser(): Promise<NormalizedUser | null> {
   await connectDB();
   const user = await User.findById(parsed.userId).lean();
   if (!user) return null;
-  // single-active-session enforcement: a token from an earlier login is rejected
+  
   if ((user.sessionId ?? null) !== parsed.sessionId) return null;
   return normalizeUser(user);
 }
 
-/** Throws a Response-friendly object pattern: returns user or null with role check. */
+
 export async function requireAdmin() {
   const user = await getSessionUser();
   if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) return null;
   return user;
 }
 
-/* ---------- OTP utilities ---------- */
+
 
 export function generateOtp(): string {
-  // crypto-grade randomness - an OTP is a security token, never use Math.random
+  
   return String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
 }
 
@@ -144,16 +141,13 @@ export function otpExpiresAt(): number {
   return Date.now() + OTP_TTL_MS;
 }
 
-/* ---------- password-reset ticket ---------- */
 
-/** How long a verified reset ticket stays usable. */
-export const RESET_TICKET_TTL_MS = 1000 * 60 * 15; // 15 minutes
 
-/**
- * Minted once the reset OTP is verified. The OTP itself is single-use and is
- * cleared at that moment, so the pending password change is authorized by this
- * random ticket instead of a value the user could replay.
- */
+
+export const RESET_TICKET_TTL_MS = 1000 * 60 * 15; 
+
+
+
 export function createResetTicket(): string {
   return crypto.randomBytes(32).toString("hex");
 }
@@ -162,7 +156,7 @@ export function resetTicketExpiresAt(): number {
   return Date.now() + RESET_TICKET_TTL_MS;
 }
 
-/** Send an OTP email via SMTP (nodemailer). Falls back to console log when SMTP is not configured. */
+
 export async function sendOtpEmail(email: string, code: string, purpose: "verify" | "reset") {
   const purposeLabel = purpose === "verify" ? "email verification" : "password reset";
 
@@ -171,7 +165,7 @@ export async function sendOtpEmail(email: string, code: string, purpose: "verify
   const pass = process.env.SMTP_PASS;
 
   if (!host || !user || !pass) {
-    // Dev fallback - print the code to the server console instead of sending email.
+    
     console.log(`[OTP] (SMTP not configured) ${purposeLabel} code for ${email}: ${code}`);
     return { ok: true };
   }
@@ -199,10 +193,10 @@ export async function sendOtpEmail(email: string, code: string, purpose: "verify
   return { ok: true };
 }
 
-/* ---------- TOTP 2FA utilities ---------- */
+
 
 export function generateTwoFactorSecret(): string {
-  // base32 secret (160 bits = 32 chars)
+  
   const bytes = crypto.randomBytes(20);
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
   let secret = "";
@@ -219,7 +213,7 @@ export function generateTwoFactorSecret(): string {
   return secret;
 }
 
-/** Decode a base32 string to a Buffer (RFC 4648). */
+
 function base32ToBuffer(input: string): Buffer {
   const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
   let buffer = 0;
@@ -239,7 +233,7 @@ function base32ToBuffer(input: string): Buffer {
 }
 
 export function generateTotpCode(secret: string, epochSeconds: number = Math.floor(Date.now() / 1000 / 30)): string {
-  // HMAC-SHA1 based TOTP per RFC 6238
+  
   const key = base32ToBuffer(secret);
   const counter = Buffer.alloc(8);
   let epoch = epochSeconds;

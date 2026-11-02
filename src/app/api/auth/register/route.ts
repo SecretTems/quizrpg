@@ -72,7 +72,7 @@ export async function POST(req: Request) {
       equipment,
     });
 
-    // send OTP for email verification but do not auto-login yet
+    
     const code = generateOtp();
     const expires = otpExpiresAt();
     await User.findByIdAndUpdate(created._id, { otpCode: code, otpExpires: expires });

@@ -1,8 +1,5 @@
-/**
- * Copies the static assets into the standalone output after `next build`.
- * Cross-platform replacement for the Unix `cp -r` commands this used to shell out to,
- * so `npm run build` works on Windows as well as macOS/Linux.
- */
+
+
 import fs from "node:fs";
 import path from "node:path";
 

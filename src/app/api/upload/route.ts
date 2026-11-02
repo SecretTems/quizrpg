@@ -1,16 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 
-/**
- * Unified image upload endpoint.
- *
- * The client downscales pictures (profile / category / monster art) to 128 px
- * and sends them as a base64 data URL; this route validates the MIME type and
- * size cap before the caller stores the string on its document - keeping every
- * custom image small and consistent so the database stays light.
- */
+
+
 const KINDS = ["avatar", "category", "monster"] as const;
-export const MAX_UPLOAD_BYTES = 200_000; // ~200 KB after the client-side 128 px downscale
+export const MAX_UPLOAD_BYTES = 200_000; 
 const DATA_URL_RE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
 
 export function dataUrlBytes(dataUrl: string): number {

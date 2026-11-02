@@ -22,20 +22,12 @@ export interface BattleQuestion {
   options: string[];
   difficulty: Difficulty;
   status: "OFFICIAL" | "PENDING" | "REJECTED" | "CUSTOM";
-  /** per-question time limit in seconds (10-300) */
+  
   timerSeconds: number;
 }
 
-/**
- * Draw `wanted` questions for a battle mode.
- *
- * Rules:
- * - players draw from the OFFICIAL bank plus their own CUSTOM questions;
- * - questions never repeat inside one battle unless the eligible pool is
- *   smaller than the question count;
- * - falls back to the official pool of other subjects when the chosen subject
- *   is too small.
- */
+
+
 export async function drawWave(
   subject: string | string[],
   userId: string,
@@ -43,17 +35,17 @@ export async function drawWave(
   mode: BattleModeId,
   wave = 1,
   excludeIds: string[] = [],
-  /** when fighting a custom category, its creator's CUSTOM questions are also eligible */
+  
   extraOwnerIds: string[] = [],
 ): Promise<BattleQuestion[]> {
   await connectDB();
-  // Question limits per difficulty are removed: draw every available question
-  // of the selected difficulty instead of a fixed per-mode cap.
+  
+  
   const difficulty = pickDifficulty(mode, wave);
 
-  // battles draw from the OFFICIAL bank (custom questions are practice-only),
-  // but for a player-created category the creator's own CUSTOM questions in
-  // the category's subjects join the pool so private content stays playable
+  
+  
+  
   const poolDocs = await Question.find(
     extraOwnerIds.length > 0
       ? { $or: [{ status: "OFFICIAL" }, { status: "CUSTOM", ownerId: { $in: extraOwnerIds } }] }
@@ -62,8 +54,8 @@ export async function drawWave(
   if (poolDocs.length === 0) return [];
   const pool = poolDocs.map(normalizeQuestion);
 
-  // normalize the filter: "ALL" → no filter; a category may list several
-  // subjects, so accept string[] too ("ALL" inside the list means no filter)
+  
+  
   const subjectList = Array.isArray(subject)
     ? subject.filter((s) => s && s !== "ALL")
     : subject === "ALL"
@@ -74,7 +66,7 @@ export async function drawWave(
     subjectList.length === 0 ? pool : pool.filter((q) => (q.subjects?.length ? q.subjects : [q.subject]).some((s) => subjectList.includes(s)));
   const wanted = subjectPool.filter((q) => q.difficulty === difficulty).length;
   if (subjectPool.length < wanted) {
-    // not enough in this subject - mix in official questions from other subjects
+    
     subjectPool = [
       ...subjectPool,
       ...pool.filter((q) => q.status === "OFFICIAL" && !subjectList.includes(q.subject)),
@@ -86,10 +78,10 @@ export async function drawWave(
   let allowRepeats = false;
 
   for (let i = 0; i < wanted; i++) {
-    // draw ONLY from the requested difficulty - never fall back to another
+    
     let candidates = subjectPool.filter((q) => q.difficulty === difficulty && !used.has(q.id));
     if (candidates.length === 0 && allowRepeats) {
-      // bank exhausted of fresh questions - allow repeats within this difficulty
+      
       candidates = subjectPool.filter((q) => q.difficulty === difficulty);
     }
     if (candidates.length === 0 && !allowRepeats) {
@@ -97,7 +89,7 @@ export async function drawWave(
       used.clear();
       candidates = subjectPool.filter((q) => q.difficulty === difficulty);
     }
-    if (candidates.length === 0) break; // nothing at this difficulty at all
+    if (candidates.length === 0) break; 
     const choice = candidates[cryptoInt(candidates.length)];
     used.add(choice.id);
     picked.push(choice);
@@ -118,7 +110,7 @@ export function toBattleQuestion(q: NormalizedQuestion): BattleQuestion {
   };
 }
 
-/** Serialize a battle document + its current question into the client-safe state. */
+
 export function toBattleState(
   battle: {
     id: string;
@@ -143,9 +135,9 @@ export function toBattleState(
     status: string;
     questions: string[];
     cursor: number;
-    /** epoch ms deadline for the current question (survives tab/window switches) */
+    
     questionDeadlineAt?: number;
-    /** battle loadout snapshot of the player's 3 consumable slots */
+    
     loadout?: (string | null)[];
   },
   currentQuestion: BattleQuestion | null,
@@ -187,7 +179,7 @@ export function loadBattleQuestions(battle: { questions: string[] }): BattleQues
   return battle.questions.map((id) => ({ id })) as BattleQuestion[];
 }
 
-/** Which tier (if any) was newly unlocked by reaching this level? */
+
 export function newlyUnlockedTier(level: number): EnemyTier | null {
   const t = ENEMY_TIERS.find((tier) => tier.unlockLevel === level);
   return t ?? null;

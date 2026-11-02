@@ -42,8 +42,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, emailVerified: true });
     }
 
-    // password reset - the OTP is single-use, so it is consumed here and a
-    // short-lived ticket authorizes the actual password change
+    
+    
     const resetToken = createResetTicket();
     user.otpCode = null;
     user.otpExpires = null;

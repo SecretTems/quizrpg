@@ -42,7 +42,7 @@ type Slot = "WEAPON" | "ARMOR" | "ACCESSORY";
 
 const SLOT_LABEL: Record<Slot, string> = { WEAPON: "Weapon", ARMOR: "Armor", ACCESSORY: "Accessory" };
 const SLOTS: Slot[] = ["WEAPON", "ARMOR", "ACCESSORY"];
-const PER_PAGE = 25; // 5 × 5 storage grid
+const PER_PAGE = 25; 
 
 const RING_BY_RARITY: Record<string, string> = {
   LEGENDARY: "border-amber-500/70",
@@ -51,7 +51,7 @@ const RING_BY_RARITY: Record<string, string> = {
   COMMON: "border-border",
 };
 
-/** Square art tile for an item - custom image when present, slot emoji otherwise. */
+
 function ItemTile({ itemId, className }: { itemId: string; className?: string }) {
   const def = itemById(itemId);
   if (def?.image) {
@@ -69,10 +69,10 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [busy, setBusy] = useState(false);
-  /** which loadout slot is being picked for (0-2), or null when not picking */
+  
   const [pickingSlot, setPickingSlot] = useState<number | null>(null);
 
-  /* ---- derived straight from the refreshed user prop (never stale) ---- */
+  
   const backpack = (user?.backpack ?? {}) as Record<string, BackpackEntry>;
   const equipped = user?.equipment ?? { WEAPON: null, ARMOR: null, ACCESSORY: null };
   const entries = Object.entries(backpack);
@@ -88,7 +88,7 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
   const pages = Math.max(1, Math.ceil(entries.length / PER_PAGE));
   const safePage = Math.min(page, pages - 1);
   const pageEntries = entries.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
-  /* ---- battle loadout: 3 slots, each holds ONE consumable (duplicates allowed) ---- */
+  
   const loadout = (user?.loadout ?? [null, null, null]).slice(0, 3) as (string | null)[];
   const consumableEntries = entries.filter(([id]) => itemById(id)?.slot === "CONSUMABLE");
 
@@ -103,7 +103,7 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
     saveLoadout(next);
   }
 
-  /** Equip button on an empty slot - uses the Storage selection with a type check. */
+  
   function equipSelectedInto(slot: Slot) {
     if (!selected || !selectedDef) {
       setMessage({ kind: "error", text: "Select an item in Storage first, then click Equip." });
@@ -168,7 +168,7 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
         )}
 
         <div className="grid gap-4 md:grid-cols-2">
-          {/* ---------- left: equipment + inventory ---------- */}
+          {}
           <div className="space-y-4">
             <div>
               <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Equipment</h4>
@@ -259,8 +259,8 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
                       {consumableEntries.map(([id, entry]) => {
                         const d = itemById(id);
                         if (!d) return null;
-                        // a slot holds one unit - grey out the option once every
-                        // owned unit is already sitting in another slot
+                        
+                        
                         const usedInOtherSlots = loadout.filter((v, i) => v === id && i !== pickingSlot).length;
                         const owned = entry.qty ?? 1;
                         const exhausted = usedInOtherSlots >= owned;
@@ -289,7 +289,7 @@ export function EquipmentView({ open, onOpenChange, user, onRefresh }: Equipment
             </div>
           </div>
 
-          {/* ---------- right: storage ---------- */}
+          {}
           <div className="space-y-3 rounded-xl border border-border/60 bg-muted/10 p-3">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Storage</h4>

@@ -3,16 +3,15 @@ import { connectDB } from "@/lib/db";
 import { User, normalizeUser } from "@/lib/models";
 import { getSessionUser } from "@/lib/auth";
 
-/** Local calendar day key (e.g. 2026-10-21). Claiming once per key. */
 function dayKey(ms: number): string {
   const d = new Date(ms);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 const DAY_MS = 86_400_000;
-const BASE_GEMS = 1; // every day
-const WEEK_BONUS = 5; // every 7-day streak milestone
-const MONTH_BONUS = 50; // full month without a miss (30+ consecutive days)
+const BASE_GEMS = 1; 
+const WEEK_BONUS = 5; 
+const MONTH_BONUS = 50; 
 
 export async function GET() {
   const user = await getSessionUser();
@@ -37,7 +36,7 @@ export async function POST() {
     return NextResponse.json({ error: "Already claimed today. Come back tomorrow!" }, { status: 409 });
   }
 
-  // streak: continues if the last claim was yesterday, otherwise resets
+  
   const claimedYesterday = doc.lastDailyClaimAt
     ? dayKey(doc.lastDailyClaimAt) === dayKey(now - DAY_MS)
     : false;
